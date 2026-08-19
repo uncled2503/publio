@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { Plus } from "lucide-react";
 
@@ -46,9 +45,13 @@ export default async function AccountsPage({
           </p>
         </div>
         <Button asChild>
-          <Link href={`/api/integrations/instagram/connect?workspaceSlug=${workspace.slug}`}>
+          {/* Plain <a>, not next/link's <Link>: this route ends in a
+              redirect to a third-party origin (Instagram), and Link's
+              client-side fetch navigation can't follow a cross-origin
+              redirect — it hits CORS instead. */}
+          <a href={`/api/integrations/instagram/connect?workspaceSlug=${workspace.slug}`}>
             <Plus /> Conectar Instagram
-          </Link>
+          </a>
         </Button>
       </div>
 
@@ -70,9 +73,9 @@ export default async function AccountsPage({
               Nenhuma conta do Instagram conectada ainda.
             </p>
             <Button asChild>
-              <Link href={`/api/integrations/instagram/connect?workspaceSlug=${workspace.slug}`}>
+              <a href={`/api/integrations/instagram/connect?workspaceSlug=${workspace.slug}`}>
                 Conectar Instagram
-              </Link>
+              </a>
             </Button>
           </CardContent>
         </Card>
@@ -103,9 +106,9 @@ export default async function AccountsPage({
                   account.tokenStatus === "PERMISSION_REVOKED" ||
                   account.tokenStatus === "ERROR" ? (
                     <Button size="sm" asChild>
-                      <Link href={`/api/integrations/instagram/connect?workspaceSlug=${workspace.slug}`}>
+                      <a href={`/api/integrations/instagram/connect?workspaceSlug=${workspace.slug}`}>
                         Reconectar
-                      </Link>
+                      </a>
                     </Button>
                   ) : null}
                   {canDisconnect && account.tokenStatus !== "DISCONNECTED" ? (
