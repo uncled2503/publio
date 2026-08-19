@@ -1,4 +1,5 @@
 import { env } from "@/server/config/env";
+import { logger } from "@/server/observability/logger";
 import {
   type ContainerStatus,
   type CreateCarouselContainerParams,
@@ -109,6 +110,13 @@ export class LiveInstagramProvider implements InstagramProvider {
       result.account_type === "BUSINESS" || result.account_type === "CREATOR"
         ? result.account_type
         : null;
+
+    if (accountType === null) {
+      logger.warn("instagram.oauth.unrecognized_account_type", {
+        rawAccountType: result.account_type,
+        instagramUserId: result.user_id,
+      });
+    }
 
     return {
       instagramUserId: result.user_id,
