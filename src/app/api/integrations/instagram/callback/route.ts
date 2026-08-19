@@ -48,7 +48,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const provider = getInstagramProvider();
-    const { shortLivedToken } = await provider.exchangeAuthorizationCode(code, redirectUri());
+    const uri = redirectUri();
+    logger.info("instagram.oauth.exchange_attempt", {
+      workspaceId: workspace.id,
+      redirectUri: uri,
+      codeLength: code.length,
+      codePreview: `${code.slice(0, 10)}...${code.slice(-6)}`,
+      receivedAt: new Date().toISOString(),
+    });
+    const { shortLivedToken } = await provider.exchangeAuthorizationCode(code, uri);
     const longLived = await provider.exchangeForLongLivedToken(shortLivedToken);
     const profile = await provider.getAccountProfile(longLived.accessToken);
 
