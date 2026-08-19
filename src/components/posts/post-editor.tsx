@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { PostType } from "@prisma/client";
 import { Image as ImageIcon, GalleryHorizontal, Clapperboard, FileVideo, Check, Trash2 } from "lucide-react";
@@ -111,6 +111,15 @@ export function PostEditor({
   const isEditable = post.status === "DRAFT";
   const isReadyToQueue = selectedMediaIds.length > 0 && selectedAccountIds.length > 0;
   const canCancel = ["DRAFT", "SCHEDULED", "QUEUED", "FAILED"].includes(post.status);
+  const isInFlight = ["QUEUED", "PREPARING", "PROCESSING_MEDIA", "PUBLISHING"].includes(post.status);
+
+  // The worker updates status in the background — poll while a publish is
+  // actually running so the page doesn't look stuck once it's done.
+  useEffect(() => {
+    if (!isInFlight) return;
+    const id = setInterval(() => router.refresh(), 5000);
+    return () => clearInterval(id);
+  }, [isInFlight, router]);
   const mediaById = useMemo(() => new Map(availableMedia.map((m) => [m.id, m])), [availableMedia]);
   const selectedMedia = selectedMediaIds.map((id) => mediaById.get(id)).filter((m): m is MediaOption => !!m);
 
