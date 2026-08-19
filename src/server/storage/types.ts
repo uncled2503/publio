@@ -17,6 +17,9 @@ export interface StorageProvider {
   /** Fetches the object's bytes. Used by media processing for small files (images). */
   getObjectBuffer(key: string): Promise<Buffer>;
 
+  /** Server-side direct upload — for artifacts the worker generates itself (e.g. video thumbnails), never for user-supplied file bytes (those go through getUploadUrl). */
+  putObject(key: string, body: Buffer, contentType: string): Promise<void>;
+
   /** Fetches only the first `byteCount` bytes — for sniffing large (video) files without downloading them whole. */
   getObjectRange(key: string, byteCount: number): Promise<Buffer>;
 

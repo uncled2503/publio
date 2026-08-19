@@ -41,12 +41,16 @@ export default async function EditPostPage({
       }}
       availableMedia={mediaAssets
         .filter((a) => a.processingStatus === "READY")
-        .map((a) => ({
-          id: a.id,
-          publicUrl: storage.getPublicUrl(a.storageKey),
-          mimeType: a.mimeType,
-          originalFilename: a.originalFilename,
-        }))}
+        .map((a) => {
+          const metadata = a.metadata as { thumbnailKey?: string } | null;
+          return {
+            id: a.id,
+            publicUrl: storage.getPublicUrl(a.storageKey),
+            thumbnailUrl: metadata?.thumbnailKey ? storage.getPublicUrl(metadata.thumbnailKey) : null,
+            mimeType: a.mimeType,
+            originalFilename: a.originalFilename,
+          };
+        })}
       availableAccounts={socialAccounts
         .filter((a) => a.tokenStatus === "CONNECTED" || a.tokenStatus === "EXPIRING")
         .map((a) => ({ id: a.id, username: a.username, profilePictureUrl: a.profilePictureUrl }))}

@@ -54,18 +54,22 @@ export default async function PostsPage({
         <div className="flex flex-col gap-3">
           {posts.map((post) => {
             const cover = post.media[0];
+            const coverMetadata = cover?.mediaAsset.metadata as { thumbnailKey?: string } | null;
+            const coverImageUrl = cover
+              ? cover.mediaAsset.mimeType.startsWith("image/")
+                ? storage.getPublicUrl(cover.mediaAsset.storageKey)
+                : coverMetadata?.thumbnailKey
+                  ? storage.getPublicUrl(coverMetadata.thumbnailKey)
+                  : null
+              : null;
             return (
               <Link key={post.id} href={`/app/${workspaceSlug}/posts/${post.id}`}>
                 <Card className="transition-colors hover:bg-accent/50">
                   <CardContent className="flex items-center gap-4">
                     <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                      {cover ? (
+                      {coverImageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- external R2 URL
-                        <img
-                          src={storage.getPublicUrl(cover.mediaAsset.storageKey)}
-                          alt=""
-                          className="size-full object-cover"
-                        />
+                        <img src={coverImageUrl} alt="" className="size-full object-cover" />
                       ) : (
                         <FileStack className="size-5 text-muted-foreground" />
                       )}

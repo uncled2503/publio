@@ -54,6 +54,12 @@ export class S3StorageProvider implements StorageProvider {
     return `${base.replace(/\/$/, "")}/${key}`;
   }
 
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: key, Body: body, ContentType: contentType }),
+    );
+  }
+
   async getObjectBuffer(key: string): Promise<Buffer> {
     const result = await this.client.send(
       new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }),

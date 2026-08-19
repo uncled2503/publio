@@ -8,6 +8,7 @@ import {
 import { sniffMediaMimeType } from "./sniff-mime";
 import { getJpegDimensions } from "./jpeg-dimensions";
 import { FfprobeParseError, FfprobeUnavailableError, probeVideo } from "./video-metadata";
+import { extractThumbnail } from "./video-thumbnail";
 
 const SNIFF_BYTES = 64 * 1024;
 
@@ -20,6 +21,7 @@ interface ExtractedMetadata {
   durationSeconds?: number;
   videoCodec?: string | null;
   audioCodec?: string | null;
+  thumbnailKey?: string | null;
 }
 
 /**
@@ -137,6 +139,19 @@ async function processVideo(
   const head = await storage.headObject(storageKey);
   const sizeBytes = head?.sizeBytes ?? 0;
 
+  let thumbnailKey: string | null = null;
+  try {
+    const thumbnail = await extractThumbnail(publicUrl);
+    thumbnailKey = `${storageKey}-thumb.jpg`;
+    await storage.putObject(thumbnailKey, thumbnail, "image/jpeg");
+  } catch (error) {
+    // Non-fatal — the video is still usable without a preview image.
+    logger.warn("media.processing.thumbnail_failed", {
+      mediaAssetId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const result = MediaValidationService.validateReel({
     mimeType,
     sizeBytes,
@@ -157,6 +172,7 @@ async function processVideo(
     durationSeconds: probe.durationSeconds,
     videoCodec: probe.videoCodec,
     audioCodec: probe.audioCodec,
+    thumbnailKey,
   });
 }
 
@@ -178,6 +194,7 @@ async function finalize(
       durationSeconds: extracted.durationSeconds ?? null,
       videoCodec: extracted.videoCodec ?? null,
       audioCodec: extracted.audioCodec ?? null,
+      ...(extracted.thumbnailKey ? { metadata: { thumbnailKey: extracted.thumbnailKey } } : {}),
     },
   });
 

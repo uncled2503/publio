@@ -18,6 +18,7 @@ import type { PostStatus } from "@prisma/client";
 interface MediaOption {
   id: string;
   publicUrl: string;
+  thumbnailUrl: string | null;
   mimeType: string;
   originalFilename: string;
 }
@@ -196,9 +197,13 @@ export function PostEditor({
                         isSelected ? "border-primary" : "border-transparent",
                       )}
                     >
-                      {asset.mimeType.startsWith("image/") ? (
+                      {asset.mimeType.startsWith("image/") || asset.thumbnailUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- external R2 URL
-                        <img src={asset.publicUrl} alt="" className="size-full object-cover" />
+                        <img
+                          src={asset.thumbnailUrl ?? asset.publicUrl}
+                          alt=""
+                          className="size-full object-cover"
+                        />
                       ) : (
                         <div className="flex size-full items-center justify-center">
                           <FileVideo className="size-6 text-muted-foreground" />
@@ -284,9 +289,13 @@ export function PostEditor({
             <div className="flex aspect-square items-center justify-center bg-muted">
               {selectedMedia.length === 0 ? (
                 <span className="text-xs text-muted-foreground">Sem mídia selecionada</span>
-              ) : selectedMedia[0]!.mimeType.startsWith("image/") ? (
+              ) : selectedMedia[0]!.mimeType.startsWith("image/") || selectedMedia[0]!.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- external R2 URL
-                <img src={selectedMedia[0]!.publicUrl} alt="" className="size-full object-cover" />
+                <img
+                  src={selectedMedia[0]!.thumbnailUrl ?? selectedMedia[0]!.publicUrl}
+                  alt=""
+                  className="size-full object-cover"
+                />
               ) : (
                 <FileVideo className="size-10 text-muted-foreground" />
               )}

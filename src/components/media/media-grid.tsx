@@ -21,6 +21,7 @@ export interface MediaAssetView {
   processingStatus: MediaProcessingStatus;
   validationErrors: string[];
   publicUrl: string;
+  thumbnailUrl: string | null;
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -66,6 +67,13 @@ export function MediaGrid({
               // eslint-disable-next-line @next/next/no-img-element -- external R2 URL, not a local asset
               <img
                 src={asset.publicUrl}
+                alt={asset.originalFilename}
+                className="size-full object-cover"
+              />
+            ) : asset.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- external R2 URL, not a local asset
+              <img
+                src={asset.thumbnailUrl}
                 alt={asset.originalFilename}
                 className="size-full object-cover"
               />

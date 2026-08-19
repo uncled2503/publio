@@ -12,6 +12,10 @@ interface ValidationShape {
   errors?: Array<{ message?: string }>;
 }
 
+interface MediaMetadataShape {
+  thumbnailKey?: string;
+}
+
 export default async function MediaLibraryPage({
   params,
 }: {
@@ -25,6 +29,7 @@ export default async function MediaLibraryPage({
 
   const views: MediaAssetView[] = assets.map((asset) => {
     const validation = asset.validation as ValidationShape | null;
+    const metadata = asset.metadata as MediaMetadataShape | null;
     return {
       id: asset.id,
       originalFilename: asset.originalFilename,
@@ -36,6 +41,7 @@ export default async function MediaLibraryPage({
       processingStatus: asset.processingStatus,
       validationErrors: (validation?.errors ?? []).map((e) => e.message ?? "").filter(Boolean),
       publicUrl: storage.getPublicUrl(asset.storageKey),
+      thumbnailUrl: metadata?.thumbnailKey ? storage.getPublicUrl(metadata.thumbnailKey) : null,
     };
   });
 
