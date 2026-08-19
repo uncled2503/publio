@@ -103,7 +103,7 @@ Next) per §91 — this document tracks only the checklist state.
 - [x] Phase 2 — Auth & Workspaces (signup, login, workspace creation, membership, RBAC, onboarding, workspace switcher)
 - [x] Phase 3 — Instagram OAuth (connect/callback/mock-consent routes, TokenVault, live + mock InstagramProvider, SocialAccountService, InstagramRateLimitService, Accounts UI, disconnect action). Reconnect exists; "revalidate future posts after reconnect" (§67) is deferred until PostService exists (Phase 5/7).
 - [x] Phase 4 — Media (S3-compatible storage abstraction, presigned direct-to-storage upload, BullMQ queue + worker process pulled forward from Phase 6, MIME sniffing, JPEG dimension parsing, ffprobe video metadata, MediaValidationService against Meta's verified specs, media library UI). Verified end-to-end against real Supabase + R2 + Upstash + local ffmpeg, not just unit tests.
-- [ ] Phase 5 — Composer (create/edit post, draft, caption, image/carousel/reel, preview)
+- [x] Phase 5 — Composer (create/edit post, draft, caption, image/carousel/reel, preview). Draft-only: post stays in `DRAFT` status, no scheduling/publishing wiring yet (that's Phase 6/7). `PostService.updateDraft` enforces per-type media count (1 image/reel, 2-10 carousel) and that selected media/accounts belong to the workspace.
 - [ ] Phase 6 — Scheduling (timezone handling, remaining BullMQ jobs, cancel, reschedule) — queue/worker foundation already exists from Phase 4
 - [ ] Phase 7 — Publishing worker (publish_attempt, containers, polling, publish, errors, retries, idempotency, locking)
 - [ ] Phase 8 — Calendar & history UI
