@@ -1,0 +1,56 @@
+# Optional. The recommended zero-cost path (docs/adr/ADR-006) is Supabase
+# (Postgres) + Upstash (Redis) + Cloudflare R2 (storage) directly, even in
+# development — no local services to keep running. Use this file instead
+# if you'd rather develop fully offline, or don't want cloud accounts yet.
+name: publio
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: publio
+      POSTGRES_PASSWORD: publio
+      POSTGRES_DB: publio
+    ports:
+      - "5432:5432"
+    volumes:
+      - publio_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U publio -d publio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - publio_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Optional local S3-compatible storage for development. Disable and point
+  # S3_ENDPOINT at AWS S3 or Cloudflare R2 in staging/production.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: publio-dev
+      MINIO_ROOT_PASSWORD: publio-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - publio_minio_data:/data
+
+volumes:
+  publio_postgres_data:
+  publio_redis_data:
+  publio_minio_data:

@@ -1,0 +1,498 @@
+// Publio — primary database schema.
+// See docs/database.md for design rationale and docs/adr/ for key decisions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Runtime connections (the app, the worker) go through DATABASE_URL,
+  // which on Supabase is the pooled (pgbouncer, port 6543) connection —
+  // required once anything opens many short-lived connections (serverless
+  // web app). Prisma Migrate needs a *direct* connection (port 5432)
+  // because pgbouncer's transaction pooling breaks migration locking, so
+  // it uses DIRECT_DATABASE_URL instead. See docs/adr/ADR-006.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auth (Auth.js / NextAuth) — Credentials provider is primary; Account/
+// Session tables kept so OAuth sign-in providers can be added later without
+// a schema migration.
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  workspaceMembers WorkspaceMember[]
+  uploadedMedia    MediaAsset[]      @relation("MediaUploadedBy")
+  createdPosts     Post[]            @relation("PostCreatedBy")
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Multi-tenancy core
+// ─────────────────────────────────────────────────────────────────────────
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  timezone  String   @default("UTC")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members        WorkspaceMember[]
+  socialAccounts SocialAccount[]
+  mediaAssets    MediaAsset[]
+  posts          Post[]
+  subscription   Subscription?
+  usageCounters  UsageCounter[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  featureFlags   FeatureFlag[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Social accounts (Instagram now; interface designed for more providers)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum SocialPlatform {
+  INSTAGRAM
+}
+
+enum InstagramAccountType {
+  BUSINESS
+  CREATOR
+}
+
+enum TokenStatus {
+  CONNECTED
+  EXPIRING
+  REAUTH_REQUIRED
+  PERMISSION_REVOKED
+  DISCONNECTED
+  ERROR
+}
+
+model SocialAccount {
+  id          String         @id @default(cuid())
+  workspaceId String
+  platform    SocialPlatform @default(INSTAGRAM)
+  provider    String         @default("meta")
+
+  instagramUserId   String
+  username          String
+  displayName       String?
+  profilePictureUrl String?
+  accountType       InstagramAccountType?
+
+  accessTokenEncrypted String      @db.Text
+  tokenExpiresAt       DateTime?
+  tokenStatus          TokenStatus @default(CONNECTED)
+  permissions          String[]    @default([])
+
+  connectedAt     DateTime  @default(now())
+  disconnectedAt  DateTime?
+  lastValidatedAt DateTime?
+  metadata        Json      @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  postTargets PostTarget[]
+
+  @@unique([workspaceId, platform, instagramUserId])
+  @@index([workspaceId])
+  @@index([tokenStatus])
+  @@map("social_accounts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Media
+// ─────────────────────────────────────────────────────────────────────────
+
+enum MediaProcessingStatus {
+  PENDING
+  PROCESSING
+  READY
+  INVALID
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model MediaAsset {
+  id           String @id @default(cuid())
+  workspaceId  String
+  uploadedById String
+
+  storageProvider  String
+  storageKey       String
+  originalFilename String
+  mimeType         String
+  sizeBytes        BigInt
+  width            Int?
+  height           Int?
+  durationSeconds  Float?
+  videoCodec       String?
+  audioCodec       String?
+  aspectRatio      Float?
+
+  processingStatus MediaProcessingStatus @default(PENDING)
+  validation       Json                  @default("{}")
+  metadata         Json                  @default("{}")
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploadedBy User        @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
+  postMedia  PostMedia[]
+
+  @@index([workspaceId])
+  @@index([processingStatus])
+  @@map("media_assets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Posts and publishing
+// ─────────────────────────────────────────────────────────────────────────
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  QUEUED
+  PREPARING
+  PROCESSING_MEDIA
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELED
+}
+
+enum PostType {
+  IMAGE
+  CAROUSEL
+  REEL
+}
+
+enum PublishMode {
+  NOW
+  SCHEDULED
+}
+
+model Post {
+  id          String @id @default(cuid())
+  workspaceId String
+  createdById String
+
+  postType    PostType
+  caption     String      @default("") @db.Text
+  status      PostStatus  @default(DRAFT)
+  scheduledAt DateTime?
+  timezone    String      @default("UTC")
+  publishMode PublishMode @default(SCHEDULED)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  canceledAt DateTime?
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User         @relation("PostCreatedBy", fields: [createdById], references: [id])
+  media     PostMedia[]
+  targets   PostTarget[]
+
+  @@index([workspaceId, status])
+  @@index([scheduledAt])
+  @@map("posts")
+}
+
+model PostMedia {
+  id           String    @id @default(cuid())
+  postId       String
+  mediaAssetId String
+  position     Int
+  mediaType    MediaType
+  metadata     Json      @default("{}")
+
+  post       Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id])
+
+  @@unique([postId, position])
+  @@map("post_media")
+}
+
+enum PostTargetStatus {
+  QUEUED
+  PREPARING
+  PROCESSING_MEDIA
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELED
+  MISSED_SCHEDULE
+}
+
+model PostTarget {
+  id              String           @id @default(cuid())
+  postId          String
+  socialAccountId String
+  platform        SocialPlatform   @default(INSTAGRAM)
+  status          PostTargetStatus @default(QUEUED)
+
+  scheduledAt         DateTime?
+  publishedAt         DateTime?
+  externalPostId      String?
+  externalPermalink   String?
+  providerContainerId String?
+  lastErrorCode       String?
+  lastErrorMessage    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post            Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount    @relation(fields: [socialAccountId], references: [id])
+  publishAttempts PublishAttempt[]
+
+  @@index([postId])
+  @@index([socialAccountId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("post_targets")
+}
+
+enum AttemptStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model PublishAttempt {
+  id            String        @id @default(cuid())
+  postTargetId  String
+  attemptNumber Int
+  startedAt     DateTime      @default(now())
+  finishedAt    DateTime?
+  status        AttemptStatus @default(RUNNING)
+
+  provider          String  @default("meta")
+  providerRequestId String?
+  providerErrorCode String?
+  providerErrorType String?
+  errorMessage      String?
+  retryable         Boolean @default(false)
+  sanitizedResponse Json    @default("{}")
+  metadata          Json    @default("{}")
+
+  postTarget PostTarget @relation(fields: [postTargetId], references: [id], onDelete: Cascade)
+
+  @@unique([postTargetId, attemptNumber])
+  @@index([postTargetId])
+  @@map("publish_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Billing
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  AGENCY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  INCOMPLETE
+}
+
+model Subscription {
+  id          String @id @default(cuid())
+  workspaceId String @unique
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  plan                 Plan               @default(FREE)
+  status               SubscriptionStatus @default(TRIALING)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// Stripe webhook idempotency ledger — every processed event id is recorded
+// before side effects are applied, per docs/security.md webhook rules.
+model StripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+
+  @@map("stripe_events")
+}
+
+model UsageCounter {
+  id          String @id @default(cuid())
+  workspaceId String
+  period      String // e.g. "2026-08"
+
+  postsPublished   Int    @default(0)
+  postsScheduled   Int    @default(0)
+  storageBytesUsed BigInt @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, period])
+  @@map("usage_counters")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Audit, notifications, feature flags
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  actorUserId  String?
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation(fields: [actorUserId], references: [id])
+
+  @@index([workspaceId, createdAt])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String?
+  type        String
+  title       String
+  message     String
+  metadata    Json      @default("{}")
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId, readAt])
+  @@map("notifications")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String
+  description String?
+  enabled     Boolean  @default(false)
+  workspaceId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([key, workspaceId])
+  @@map("feature_flags")
+}
