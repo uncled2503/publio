@@ -104,9 +104,9 @@ Next) per §91 — this document tracks only the checklist state.
 - [x] Phase 3 — Instagram OAuth (connect/callback/mock-consent routes, TokenVault, live + mock InstagramProvider, SocialAccountService, InstagramRateLimitService, Accounts UI, disconnect action). Reconnect exists; "revalidate future posts after reconnect" (§67) is deferred until PostService exists (Phase 5/7).
 - [x] Phase 4 — Media (S3-compatible storage abstraction, presigned direct-to-storage upload, BullMQ queue + worker process pulled forward from Phase 6, MIME sniffing, JPEG dimension parsing, ffprobe video metadata, MediaValidationService against Meta's verified specs, media library UI). Verified end-to-end against real Supabase + R2 + Upstash + local ffmpeg, not just unit tests.
 - [x] Phase 5 — Composer (create/edit post, draft, caption, image/carousel/reel, preview). Draft-only: post stays in `DRAFT` status, no scheduling/publishing wiring yet (that's Phase 6/7). `PostService.updateDraft` enforces per-type media count (1 image/reel, 2-10 carousel) and that selected media/accounts belong to the workspace.
-- [ ] Phase 6 — Scheduling (timezone handling, remaining BullMQ jobs, cancel, reschedule) — queue/worker foundation already exists from Phase 4
-- [ ] Phase 7 — Publishing worker (publish_attempt, containers, polling, publish, errors, retries, idempotency, locking)
-- [ ] Phase 8 — Calendar & history UI
+- [x] Phase 6 — Scheduling (timezone handling via luxon, schedule/reschedule/publish-now/cancel, delayed BullMQ job per PostTarget keyed by a deterministic jobId)
+- [x] Phase 7 — Publishing worker (`src/server/publishing/publish-post-target-job.ts`): container creation per post type, status polling per ADR-005's documented interval, publish, permalink, PublishAttempt records, rate-limit gating, MISSED_SCHEDULE on disconnected accounts. Retries via BullMQ's own attempts/backoff; idempotency via one deterministic job per PostTarget. Locking beyond that (e.g. cross-process mutual exclusion) not yet needed — single worker process.
+- [x] Phase 8 — Calendar (month-grid view grouped by scheduled day in workspace timezone). No dedicated history/audit-log UI yet (audit_logs table is populated, no page reads it).
 - [ ] Phase 9 — Billing (Stripe checkout, webhook, entitlements, customer portal)
 - [ ] Phase 10 — Production hardening (rate limits, observability, audit logs, reconciliation, health checks, cleanup jobs)
 - [ ] Phase 11 — Meta review readiness (docs, scopes, privacy, deletion process)
