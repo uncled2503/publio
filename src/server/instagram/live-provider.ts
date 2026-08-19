@@ -11,7 +11,7 @@ import {
   type PublishingLimitStatus,
   InstagramProviderError,
 } from "./types";
-import { OAUTH_HOST, GRAPH_HOST, graphClient, graphUrl } from "./graph-client";
+import { AUTHORIZE_HOST, OAUTH_HOST, GRAPH_HOST, graphClient, graphUrl } from "./graph-client";
 
 /** See docs/adr/ADR-005-instagram-oauth-flow.md for why these two scopes. */
 export const REQUIRED_INSTAGRAM_SCOPES = [
@@ -38,7 +38,7 @@ export class LiveInstagramProvider implements InstagramProvider {
       scope: REQUIRED_INSTAGRAM_SCOPES.join(","),
       state,
     });
-    return `${OAUTH_HOST}/oauth/authorize?${params.toString()}`;
+    return `${AUTHORIZE_HOST}/oauth/authorize?${params.toString()}`;
   }
 
   async exchangeAuthorizationCode(

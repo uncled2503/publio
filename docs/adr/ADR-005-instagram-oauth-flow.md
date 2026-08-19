@@ -28,9 +28,18 @@ recommendation for new Instagram-only integrations.
 
 ## Exact contract (source of truth for `src/server/instagram/live-provider.ts`)
 
-- Authorize: `GET https://api.instagram.com/oauth/authorize`
+- Authorize: `GET https://www.instagram.com/oauth/authorize` (note: different
+  host from every other step below — confirmed against the Meta App
+  Dashboard's own generated authorize URL on 2026-08-19, correcting this
+  ADR's original `api.instagram.com` host)
   params: `client_id`, `redirect_uri`, `response_type=code`,
   `scope=instagram_business_basic,instagram_business_content_publish`, `state`.
+  **`client_id`/`client_secret` throughout this whole flow are the
+  "Instagram App ID" / "Instagram App Secret" from App Dashboard → Instagram →
+  API setup with Instagram login → Business login settings — NOT the
+  Facebook App ID/Secret from App Settings → Basic.** The two are visually
+  easy to confuse; using the wrong one fails silently until the authorize
+  redirect (wrong client_id) or token exchange (wrong secret).
 - Exchange code → short-lived token (~1h): `POST https://api.instagram.com/oauth/access_token`
   body: `client_id`, `client_secret`, `grant_type=authorization_code`, `redirect_uri`, `code`
   → `{ access_token, user_id }`.

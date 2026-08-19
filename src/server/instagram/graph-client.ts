@@ -1,6 +1,12 @@
 import { env } from "@/server/config/env";
 import { normalizeProviderError, normalizeTransportError } from "./errors";
 
+// The authorize step (browser redirect) and the token-exchange step (server
+// POST) live on different hosts — Meta moved /oauth/authorize to
+// www.instagram.com while /oauth/access_token stayed on api.instagram.com.
+// Verified against the Meta App Dashboard's own generated authorize URL and
+// developers.facebook.com/docs/instagram-platform (2026-08-19).
+export const AUTHORIZE_HOST = "https://www.instagram.com";
 export const OAUTH_HOST = "https://api.instagram.com";
 export const GRAPH_HOST = "https://graph.instagram.com";
 
