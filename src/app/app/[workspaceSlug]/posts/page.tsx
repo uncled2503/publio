@@ -81,7 +81,9 @@ export default async function PostsPage({
                       <p className="text-xs text-muted-foreground">
                         {POST_TYPE_LABEL[post.postType]} · {post.targets.length}{" "}
                         conta{post.targets.length === 1 ? "" : "s"} ·{" "}
-                        {new Date(post.updatedAt).toLocaleDateString("pt-BR")}
+                        {post.scheduledAt
+                          ? `${post.status === "PUBLISHED" ? "Publicado" : "Agendado"} em ${new Date(post.scheduledAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`
+                          : `Atualizado em ${new Date(post.updatedAt).toLocaleDateString("pt-BR")}`}
                       </p>
                     </div>
                     <PostStatusBadge status={post.status} />

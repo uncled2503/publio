@@ -38,7 +38,16 @@ export default async function EditPostPage({
         caption: post.caption,
         mediaAssetIds: post.media.map((m) => m.mediaAssetId),
         socialAccountIds: post.targets.map((t) => t.socialAccountId),
+        scheduledAt: post.scheduledAt ? post.scheduledAt.toISOString() : null,
+        timezone: post.timezone,
+        targets: post.targets.map((t) => ({
+          username: t.socialAccount.username,
+          status: t.status,
+          lastErrorMessage: t.lastErrorMessage,
+          externalPermalink: t.externalPermalink,
+        })),
       }}
+      workspaceTimezone={workspace.timezone}
       availableMedia={mediaAssets
         .filter((a) => a.processingStatus === "READY")
         .map((a) => {

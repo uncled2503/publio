@@ -1,7 +1,16 @@
-import type { PostType } from "@prisma/client";
+import type { PostStatus, PostTargetStatus, PostType } from "@prisma/client";
 
 import { prisma } from "@/server/db/prisma";
 import { AuditService } from "@/server/services/audit-service";
+import { assertPostTransition, nextPostStatuses } from "@/server/domain/post-state-machine";
+import {
+  assertPostTargetTransition,
+  aggregatePostStatusFromTargets,
+} from "@/server/domain/post-target-state-machine";
+import {
+  schedulePostTargetPublish,
+  cancelScheduledPublish,
+} from "@/server/queue/queues";
 
 const MEDIA_COUNT_RANGE: Record<PostType, { min: number; max: number }> = {
   IMAGE: { min: 1, max: 1 },
@@ -17,6 +26,10 @@ export class PostNotEditableError extends Error {
 }
 
 export class InvalidMediaSelectionError extends Error {}
+export class PostNotSchedulableError extends Error {}
+export class PostNotCancelableError extends Error {}
+
+const MIN_LEAD_TIME_MS = 5 * 60 * 1000;
 
 export const PostService = {
   async listForWorkspace(workspaceId: string) {
@@ -167,4 +180,232 @@ export const PostService = {
 
     await prisma.post.delete({ where: { id: post.id } });
   },
+
+  async assertReadyToQueue(postId: string): Promise<void> {
+    const post = await prisma.post.findUniqueOrThrow({
+      where: { id: postId },
+      include: { media: true, targets: true },
+    });
+    if (post.media.length === 0) {
+      throw new InvalidMediaSelectionError("Adicione mídia antes de agendar ou publicar.");
+    }
+    if (post.targets.length === 0) {
+      throw new InvalidMediaSelectionError("Selecione ao menos uma conta de destino.");
+    }
+  },
+
+  /** DRAFT -> SCHEDULED. `scheduledAt` is already-resolved UTC; `timezone` is stored for display only. */
+  async schedulePost(params: {
+    workspaceId: string;
+    actorUserId: string;
+    postId: string;
+    scheduledAt: Date;
+    timezone: string;
+  }) {
+    const post = await prisma.post.findFirst({
+      where: { id: params.postId, workspaceId: params.workspaceId },
+      include: { targets: true },
+    });
+    if (!post) throw new Error("Post not found in this workspace.");
+    assertPostTransition(post.status, "SCHEDULED");
+
+    if (params.scheduledAt.getTime() < Date.now() + MIN_LEAD_TIME_MS) {
+      throw new PostNotSchedulableError(
+        "Escolha um horário pelo menos 5 minutos no futuro.",
+      );
+    }
+    await this.assertReadyToQueue(post.id);
+
+    await prisma.post.update({
+      where: { id: post.id },
+      data: {
+        status: "SCHEDULED",
+        scheduledAt: params.scheduledAt,
+        timezone: params.timezone,
+        publishMode: "SCHEDULED",
+      },
+    });
+    await prisma.postTarget.updateMany({
+      where: { postId: post.id },
+      data: { scheduledAt: params.scheduledAt },
+    });
+    for (const target of post.targets) {
+      await schedulePostTargetPublish(target.id, params.scheduledAt);
+    }
+
+    await AuditService.log({
+      workspaceId: params.workspaceId,
+      actorUserId: params.actorUserId,
+      action: "post.scheduled",
+      resourceType: "post",
+      resourceId: post.id,
+      metadata: { scheduledAt: params.scheduledAt.toISOString(), timezone: params.timezone },
+    });
+  },
+
+  /** DRAFT -> QUEUED, publish-target jobs enqueued with zero delay. */
+  async publishNow(params: { workspaceId: string; actorUserId: string; postId: string }) {
+    const post = await prisma.post.findFirst({
+      where: { id: params.postId, workspaceId: params.workspaceId },
+      include: { targets: true },
+    });
+    if (!post) throw new Error("Post not found in this workspace.");
+    assertPostTransition(post.status, "QUEUED");
+    await this.assertReadyToQueue(post.id);
+
+    const now = new Date();
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { status: "QUEUED", scheduledAt: now, publishMode: "NOW" },
+    });
+    for (const target of post.targets) {
+      await schedulePostTargetPublish(target.id, now);
+    }
+
+    await AuditService.log({
+      workspaceId: params.workspaceId,
+      actorUserId: params.actorUserId,
+      action: "post.publish_now_requested",
+      resourceType: "post",
+      resourceId: post.id,
+    });
+  },
+
+  /** Only while still SCHEDULED and nothing has started running yet. */
+  async reschedulePost(params: {
+    workspaceId: string;
+    actorUserId: string;
+    postId: string;
+    scheduledAt: Date;
+    timezone: string;
+  }) {
+    const post = await prisma.post.findFirst({
+      where: { id: params.postId, workspaceId: params.workspaceId },
+      include: { targets: true },
+    });
+    if (!post) throw new Error("Post not found in this workspace.");
+    if (post.status !== "SCHEDULED") {
+      throw new PostNotSchedulableError("Só é possível reagendar uma publicação agendada.");
+    }
+    if (params.scheduledAt.getTime() < Date.now() + MIN_LEAD_TIME_MS) {
+      throw new PostNotSchedulableError("Escolha um horário pelo menos 5 minutos no futuro.");
+    }
+
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { scheduledAt: params.scheduledAt, timezone: params.timezone },
+    });
+
+    for (const target of post.targets) {
+      if (target.status !== "QUEUED") continue; // already running/settled — leave it alone
+      await cancelScheduledPublish(target.id);
+      await prisma.postTarget.update({
+        where: { id: target.id },
+        data: { scheduledAt: params.scheduledAt },
+      });
+      await schedulePostTargetPublish(target.id, params.scheduledAt);
+    }
+
+    await AuditService.log({
+      workspaceId: params.workspaceId,
+      actorUserId: params.actorUserId,
+      action: "post.rescheduled",
+      resourceType: "post",
+      resourceId: post.id,
+      metadata: { scheduledAt: params.scheduledAt.toISOString(), timezone: params.timezone },
+    });
+  },
+
+  /** DRAFT/SCHEDULED/QUEUED/FAILED -> CANCELED, and removes any not-yet-run publish jobs. */
+  async cancelPost(params: { workspaceId: string; actorUserId: string; postId: string }) {
+    const post = await prisma.post.findFirst({
+      where: { id: params.postId, workspaceId: params.workspaceId },
+      include: { targets: true },
+    });
+    if (!post) throw new Error("Post not found in this workspace.");
+    try {
+      assertPostTransition(post.status, "CANCELED");
+    } catch {
+      throw new PostNotCancelableError(
+        "Esta publicação não pode mais ser cancelada (já foi publicada ou está publicando agora).",
+      );
+    }
+
+    await prisma.post.update({
+      where: { id: post.id },
+      data: { status: "CANCELED", canceledAt: new Date() },
+    });
+
+    for (const target of post.targets) {
+      await cancelScheduledPublish(target.id);
+      if (canTransitionTarget(target.status, "CANCELED")) {
+        await prisma.postTarget.update({ where: { id: target.id }, data: { status: "CANCELED" } });
+      }
+    }
+
+    await AuditService.log({
+      workspaceId: params.workspaceId,
+      actorUserId: params.actorUserId,
+      action: "post.canceled",
+      resourceType: "post",
+      resourceId: post.id,
+    });
+  },
+
+  /**
+   * Recomputes Post.status from its targets' current statuses and walks
+   * the Post state machine there one hop at a time (§6 — nothing may set
+   * Post.status without going through assertPostTransition). Called by the
+   * publish-post-target worker after every target status change.
+   */
+  async syncStatusFromTargets(postId: string): Promise<void> {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      include: { targets: true },
+    });
+    if (!post || post.targets.length === 0) return;
+    if (post.targets.some((t) => t.status === "CANCELED") && post.targets.every((t) => t.status === "CANCELED")) {
+      return; // already handled by cancelPost — don't fight it from here
+    }
+
+    const target = aggregatePostStatusFromTargets(post.targets.map((t) => t.status));
+    let current = post.status;
+    const path = shortestPostStatusPath(current, target);
+    if (!path) return; // no valid path (e.g. post was CANCELED out-of-band) — leave it alone
+
+    for (const next of path) {
+      assertPostTransition(current, next);
+      current = next;
+    }
+    if (current === post.status) return;
+
+    await prisma.post.update({ where: { id: post.id }, data: { status: current } });
+  },
 };
+
+function canTransitionTarget(from: PostTargetStatus, to: PostTargetStatus): boolean {
+  try {
+    assertPostTargetTransition(from, to);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** BFS over the Post state machine graph — small (9 states), so brute force is plenty fast. */
+function shortestPostStatusPath(from: PostStatus, to: PostStatus): PostStatus[] | null {
+  if (from === to) return [];
+  const queue: Array<{ status: PostStatus; path: PostStatus[] }> = [{ status: from, path: [] }];
+  const seen = new Set<PostStatus>([from]);
+  while (queue.length > 0) {
+    const { status, path } = queue.shift()!;
+    for (const next of nextPostStatuses(status)) {
+      if (seen.has(next)) continue;
+      const nextPath = [...path, next];
+      if (next === to) return nextPath;
+      seen.add(next);
+      queue.push({ status: next, path: nextPath });
+    }
+  }
+  return null;
+}

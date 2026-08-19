@@ -6,6 +6,7 @@ import {
   canTransitionPost,
   InvalidPostTransitionError,
   isTerminalPostStatus,
+  nextPostStatuses,
 } from "./post-state-machine";
 
 const ALL_STATUSES: PostStatus[] = [
@@ -81,5 +82,13 @@ describe("post state machine", () => {
 
   it("assertPostTransition is a no-op for legal transitions", () => {
     expect(() => assertPostTransition("QUEUED", "PREPARING")).not.toThrow();
+  });
+
+  it("nextPostStatuses agrees with canTransitionPost for every state", () => {
+    for (const from of ALL_STATUSES) {
+      for (const to of ALL_STATUSES) {
+        expect(nextPostStatuses(from).includes(to)).toBe(canTransitionPost(from, to));
+      }
+    }
   });
 });

@@ -46,3 +46,8 @@ export function assertPostTransition(from: PostStatus, to: PostStatus): void {
 export function isTerminalPostStatus(status: PostStatus): boolean {
   return ALLOWED_TRANSITIONS[status].length === 0;
 }
+
+/** Direct transitions from `status` — used by PostService.syncStatusFromTargets to walk a multi-hop path. */
+export function nextPostStatuses(status: PostStatus): readonly PostStatus[] {
+  return ALLOWED_TRANSITIONS[status];
+}

@@ -5,15 +5,23 @@ import { useRouter } from "next/navigation";
 import type { PostType } from "@prisma/client";
 import { Image as ImageIcon, GalleryHorizontal, Clapperboard, FileVideo, Check, Trash2 } from "lucide-react";
 
-import { updatePostAction, deletePostAction } from "@/server/actions/post-actions";
+import {
+  updatePostAction,
+  deletePostAction,
+  schedulePostAction,
+  reschedulePostAction,
+  publishPostNowAction,
+  cancelPostAction,
+} from "@/server/actions/post-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PostStatusBadge } from "@/components/posts/post-status-badge";
 import { cn } from "@/lib/utils";
-import type { PostStatus } from "@prisma/client";
+import type { PostStatus, PostTargetStatus } from "@prisma/client";
 
 interface MediaOption {
   id: string;
@@ -37,11 +45,34 @@ const TYPE_OPTIONS: Array<{ type: PostType; label: string; icon: React.Component
 
 const MEDIA_LIMIT: Record<PostType, number> = { IMAGE: 1, CAROUSEL: 10, REEL: 1 };
 
+const TARGET_STATUS_LABEL: Record<PostTargetStatus, string> = {
+  QUEUED: "Na fila",
+  PREPARING: "Preparando",
+  PROCESSING_MEDIA: "Processando mídia",
+  PUBLISHING: "Publicando",
+  PUBLISHED: "Publicado",
+  FAILED: "Falhou",
+  CANCELED: "Cancelado",
+  MISSED_SCHEDULE: "Horário perdido",
+};
+
+/** "YYYY-MM-DDTHH:mm", the format <input type="datetime-local"> needs. */
+function toLocalInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function defaultScheduleValue(): string {
+  const inOneHour = new Date(Date.now() + 60 * 60 * 1000);
+  return toLocalInputValue(inOneHour);
+}
+
 export function PostEditor({
   workspaceSlug,
   post,
   availableMedia,
   availableAccounts,
+  workspaceTimezone,
 }: {
   workspaceSlug: string;
   post: {
@@ -51,14 +82,26 @@ export function PostEditor({
     caption: string;
     mediaAssetIds: string[];
     socialAccountIds: string[];
+    scheduledAt: string | null;
+    timezone: string;
+    targets: Array<{
+      username: string;
+      status: PostTargetStatus;
+      lastErrorMessage: string | null;
+      externalPermalink: string | null;
+    }>;
   };
   availableMedia: MediaOption[];
   availableAccounts: AccountOption[];
+  workspaceTimezone: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [scheduleValue, setScheduleValue] = useState(
+    post.scheduledAt ? toLocalInputValue(new Date(post.scheduledAt)) : defaultScheduleValue(),
+  );
 
   const [postType, setPostType] = useState<PostType>(post.postType);
   const [caption, setCaption] = useState(post.caption);
@@ -66,6 +109,8 @@ export function PostEditor({
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(post.socialAccountIds);
 
   const isEditable = post.status === "DRAFT";
+  const isReadyToQueue = selectedMediaIds.length > 0 && selectedAccountIds.length > 0;
+  const canCancel = ["DRAFT", "SCHEDULED", "QUEUED", "FAILED"].includes(post.status);
   const mediaById = useMemo(() => new Map(availableMedia.map((m) => [m.id, m])), [availableMedia]);
   const selectedMedia = selectedMediaIds.map((id) => mediaById.get(id)).filter((m): m is MediaOption => !!m);
 
@@ -118,6 +163,52 @@ export function PostEditor({
       deletePostAction(workspaceSlug, post.id).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Não foi possível excluir esta publicação.");
       });
+    });
+  }
+
+  function handleSchedule() {
+    setError(null);
+    startTransition(() => {
+      schedulePostAction(workspaceSlug, post.id, scheduleValue, workspaceTimezone)
+        .then(() => router.refresh())
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Não foi possível agendar esta publicação.");
+        });
+    });
+  }
+
+  function handleReschedule() {
+    setError(null);
+    startTransition(() => {
+      reschedulePostAction(workspaceSlug, post.id, scheduleValue, workspaceTimezone)
+        .then(() => router.refresh())
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Não foi possível reagendar esta publicação.");
+        });
+    });
+  }
+
+  function handlePublishNow() {
+    if (!window.confirm("Publicar agora, sem agendamento?")) return;
+    setError(null);
+    startTransition(() => {
+      publishPostNowAction(workspaceSlug, post.id)
+        .then(() => router.refresh())
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Não foi possível publicar agora.");
+        });
+    });
+  }
+
+  function handleCancel() {
+    if (!window.confirm("Cancelar esta publicação? Essa ação não pode ser desfeita.")) return;
+    setError(null);
+    startTransition(() => {
+      cancelPostAction(workspaceSlug, post.id)
+        .then(() => router.refresh())
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Não foi possível cancelar esta publicação.");
+        });
     });
   }
 
@@ -268,6 +359,102 @@ export function PostEditor({
               </Button>
             ) : null}
           </div>
+
+          {post.status === "DRAFT" ? (
+            <div className="flex flex-col gap-2 rounded-md border p-4">
+              <Label htmlFor="scheduleAt">Agendar para ({workspaceTimezone})</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  id="scheduleAt"
+                  type="datetime-local"
+                  className="w-auto"
+                  value={scheduleValue}
+                  onChange={(e) => setScheduleValue(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending || !isReadyToQueue}
+                  onClick={handleSchedule}
+                >
+                  Agendar
+                </Button>
+                <Button type="button" disabled={pending || !isReadyToQueue} onClick={handlePublishNow}>
+                  Publicar agora
+                </Button>
+              </div>
+              {!isReadyToQueue ? (
+                <p className="text-xs text-muted-foreground">
+                  Salve o rascunho com ao menos 1 mídia e 1 conta de destino antes de agendar.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {post.status === "SCHEDULED" ? (
+            <div className="flex flex-col gap-2 rounded-md border p-4">
+              <Label htmlFor="scheduleAt">Reagendar para ({workspaceTimezone})</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  id="scheduleAt"
+                  type="datetime-local"
+                  className="w-auto"
+                  value={scheduleValue}
+                  onChange={(e) => setScheduleValue(e.target.value)}
+                />
+                <Button type="button" variant="outline" disabled={pending} onClick={handleReschedule}>
+                  Reagendar
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {canCancel && post.status !== "DRAFT" ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-fit text-destructive"
+              disabled={pending}
+              onClick={handleCancel}
+            >
+              Cancelar publicação
+            </Button>
+          ) : null}
+
+          {post.status !== "DRAFT" && post.targets.length > 0 ? (
+            <div className="flex flex-col gap-2 rounded-md border p-4">
+              <Label>Status por conta</Label>
+              {post.targets.map((t) => (
+                <div key={t.username} className="flex items-center justify-between gap-3 text-sm">
+                  <span>@{t.username}</span>
+                  <div className="flex items-center gap-2">
+                    {t.externalPermalink ? (
+                      <a
+                        href={t.externalPermalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-primary underline underline-offset-2"
+                      >
+                        Ver no Instagram
+                      </a>
+                    ) : null}
+                    <span className="text-xs text-muted-foreground">{TARGET_STATUS_LABEL[t.status]}</span>
+                  </div>
+                </div>
+              ))}
+              {post.targets.some((t) => t.lastErrorMessage) ? (
+                <div className="mt-1 flex flex-col gap-1 border-t pt-2">
+                  {post.targets
+                    .filter((t) => t.lastErrorMessage)
+                    .map((t) => (
+                      <p key={t.username} className="text-xs text-destructive">
+                        @{t.username}: {t.lastErrorMessage}
+                      </p>
+                    ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-2">

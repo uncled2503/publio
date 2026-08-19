@@ -3,16 +3,20 @@ import { Queue } from "bullmq";
 import { getRedisConnection } from "./connection";
 
 /**
- * Central registry of queue names and their job payload shapes. Phase 6/7
- * add `publishPostTarget` here alongside `mediaProcessing` — one registry,
- * not queue names scattered through the codebase.
+ * Central registry of queue names and their job payload shapes — one
+ * registry, not queue names scattered through the codebase.
  */
 export const QUEUE_NAMES = {
   mediaProcessing: "media-processing",
+  publishPostTarget: "publish-post-target",
 } as const;
 
 export interface MediaProcessingJobData {
   mediaAssetId: string;
+}
+
+export interface PublishPostTargetJobData {
+  postTargetId: string;
 }
 
 const queues = new Map<string, Queue>();
@@ -41,4 +45,39 @@ export async function enqueueMediaProcessing(mediaAssetId: string): Promise<void
       removeOnFail: { age: 24 * 60 * 60 },
     },
   );
+}
+
+export function getPublishPostTargetQueue(): Queue<PublishPostTargetJobData> {
+  return getQueue<PublishPostTargetJobData>(QUEUE_NAMES.publishPostTarget);
+}
+
+/**
+ * Schedules (or immediately queues, for `publishAt <= now`) the job that
+ * actually publishes one PostTarget. Uses a deterministic jobId
+ * (the PostTarget's own id) so a reschedule/cancel can find and remove the
+ * exact pending job instead of tracking a separate BullMQ job id anywhere.
+ */
+export async function schedulePostTargetPublish(
+  postTargetId: string,
+  publishAt: Date,
+): Promise<void> {
+  const delay = Math.max(0, publishAt.getTime() - Date.now());
+  await getPublishPostTargetQueue().add(
+    "publish",
+    { postTargetId },
+    {
+      jobId: postTargetId,
+      delay,
+      attempts: 4,
+      backoff: { type: "exponential", delay: 30_000 },
+      removeOnComplete: { age: 24 * 60 * 60 },
+      removeOnFail: { age: 7 * 24 * 60 * 60 },
+    },
+  );
+}
+
+/** Removes a not-yet-started publish job — used on cancel/reschedule. No-op if it already ran. */
+export async function cancelScheduledPublish(postTargetId: string): Promise<void> {
+  const job = await getPublishPostTargetQueue().getJob(postTargetId);
+  if (job) await job.remove();
 }
