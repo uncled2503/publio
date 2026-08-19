@@ -137,16 +137,23 @@ export function PostEditor({
     setSelectedMediaIds((current) => current.slice(0, MEDIA_LIMIT[type]));
   }
 
+  /** Persists the current caption/type/media/target selection — the server-side
+   * source of truth Publicar-agora/Agendar validate against, so both call this
+   * first rather than relying on whatever was last explicitly "Salvar"d. */
+  function saveDraft() {
+    return updatePostAction(workspaceSlug, post.id, {
+      caption,
+      postType,
+      mediaAssetIds: selectedMediaIds,
+      socialAccountIds: selectedAccountIds,
+    });
+  }
+
   function handleSave() {
     setError(null);
     setSaved(false);
     startTransition(() => {
-      updatePostAction(workspaceSlug, post.id, {
-        caption,
-        postType,
-        mediaAssetIds: selectedMediaIds,
-        socialAccountIds: selectedAccountIds,
-      })
+      saveDraft()
         .then(() => {
           setSaved(true);
           router.refresh();
@@ -169,7 +176,8 @@ export function PostEditor({
   function handleSchedule() {
     setError(null);
     startTransition(() => {
-      schedulePostAction(workspaceSlug, post.id, scheduleValue, workspaceTimezone)
+      saveDraft()
+        .then(() => schedulePostAction(workspaceSlug, post.id, scheduleValue, workspaceTimezone))
         .then(() => router.refresh())
         .catch((err: unknown) => {
           setError(err instanceof Error ? err.message : "Não foi possível agendar esta publicação.");
@@ -192,7 +200,8 @@ export function PostEditor({
     if (!window.confirm("Publicar agora, sem agendamento?")) return;
     setError(null);
     startTransition(() => {
-      publishPostNowAction(workspaceSlug, post.id)
+      saveDraft()
+        .then(() => publishPostNowAction(workspaceSlug, post.id))
         .then(() => router.refresh())
         .catch((err: unknown) => {
           setError(err instanceof Error ? err.message : "Não foi possível publicar agora.");
