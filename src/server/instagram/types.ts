@@ -18,7 +18,7 @@ export interface InstagramProfile {
   instagramUserId: string;
   username: string;
   name: string | null;
-  accountType: "BUSINESS" | "CREATOR" | null;
+  accountType: "BUSINESS" | "MEDIA_CREATOR" | null;
   profilePictureUrl: string | null;
 }
 

@@ -5,7 +5,6 @@ import { cookies } from "next/headers";
 import { env } from "@/server/config/env";
 import { requireWorkspaceMember } from "@/server/auth/workspace-context";
 import { getInstagramProvider } from "@/server/instagram";
-import { logger } from "@/server/observability/logger";
 
 export const OAUTH_STATE_COOKIE = "ig_oauth_state";
 
@@ -30,15 +29,7 @@ export async function GET(request: NextRequest) {
 
   const nonce = randomBytes(16).toString("hex");
   const provider = getInstagramProvider();
-  const uri = redirectUri();
-  const authorizationUrl = provider.generateAuthorizationUrl(nonce, uri);
-
-  logger.info("instagram.oauth.connect_started", {
-    workspaceSlug,
-    redirectUri: uri,
-    nonce,
-    authorizationUrl,
-  });
+  const authorizationUrl = provider.generateAuthorizationUrl(nonce, redirectUri());
 
   const cookieStore = await cookies();
   cookieStore.set(OAUTH_STATE_COOKIE, JSON.stringify({ nonce, workspaceSlug }), {

@@ -106,8 +106,12 @@ export class LiveInstagramProvider implements InstagramProvider {
       profile_picture_url?: string;
     };
 
+    // Meta's actual values here are BUSINESS, MEDIA_CREATOR, or PERSONAL —
+    // NOT "CREATOR" (confirmed against a live account on 2026-08-19; the
+    // original ADR-005 research got this one wrong). PERSONAL falls through
+    // to null and is rejected by the OAuth callback.
     const accountType =
-      result.account_type === "BUSINESS" || result.account_type === "CREATOR"
+      result.account_type === "BUSINESS" || result.account_type === "MEDIA_CREATOR"
         ? result.account_type
         : null;
 

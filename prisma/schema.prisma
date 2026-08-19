@@ -141,7 +141,7 @@ enum SocialPlatform {
 
 enum InstagramAccountType {
   BUSINESS
-  CREATOR
+  MEDIA_CREATOR
 }
 
 enum TokenStatus {

@@ -48,19 +48,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const provider = getInstagramProvider();
-    const uri = redirectUri();
-    logger.info("instagram.oauth.exchange_attempt", {
-      workspaceId: workspace.id,
-      redirectUri: uri,
-      codeLength: code.length,
-      codePreview: `${code.slice(0, 10)}...${code.slice(-6)}`,
-      receivedAt: new Date().toISOString(),
-    });
-    const { shortLivedToken } = await provider.exchangeAuthorizationCode(code, uri);
+    const { shortLivedToken } = await provider.exchangeAuthorizationCode(code, redirectUri());
     const longLived = await provider.exchangeForLongLivedToken(shortLivedToken);
     const profile = await provider.getAccountProfile(longLived.accessToken);
 
-    if (profile.accountType !== "BUSINESS" && profile.accountType !== "CREATOR") {
+    if (profile.accountType !== "BUSINESS" && profile.accountType !== "MEDIA_CREATOR") {
       logger.warn("instagram.oauth.unsupported_account_type", {
         workspaceId: workspace.id,
         accountType: profile.accountType,

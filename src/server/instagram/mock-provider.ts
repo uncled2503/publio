@@ -33,7 +33,7 @@ import {
 interface MockTokenPayload {
   igUserId: string;
   username: string;
-  accountType: "BUSINESS" | "CREATOR";
+  accountType: "BUSINESS" | "MEDIA_CREATOR";
   issuedAt: number;
 }
 
