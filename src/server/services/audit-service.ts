@@ -56,6 +56,7 @@ export const AuditService = {
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
       take: limit,
+      include: { actor: { select: { name: true, email: true } } },
     });
   },
 };

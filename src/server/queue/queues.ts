@@ -9,6 +9,7 @@ import { getRedisConnection } from "./connection";
 export const QUEUE_NAMES = {
   mediaProcessing: "media-processing",
   publishPostTarget: "publish-post-target",
+  maintenance: "maintenance",
 } as const;
 
 export interface MediaProcessingJobData {
@@ -18,6 +19,15 @@ export interface MediaProcessingJobData {
 export interface PublishPostTargetJobData {
   postTargetId: string;
 }
+
+/** No payload — each maintenance job scans the DB itself when it runs. */
+export type MaintenanceJobData = Record<string, never>;
+
+export const MAINTENANCE_JOB_NAMES = {
+  reconcile: "reconcile",
+  validateTokens: "validate-tokens",
+  cleanupMedia: "cleanup-media",
+} as const;
 
 const queues = new Map<string, Queue>();
 
@@ -80,4 +90,34 @@ export async function schedulePostTargetPublish(
 export async function cancelScheduledPublish(postTargetId: string): Promise<void> {
   const job = await getPublishPostTargetQueue().getJob(postTargetId);
   if (job) await job.remove();
+}
+
+export function getMaintenanceQueue(): Queue<MaintenanceJobData> {
+  return getQueue<MaintenanceJobData>(QUEUE_NAMES.maintenance);
+}
+
+/**
+ * Registers the three recurring maintenance jobs (§Phase 10 — reconciliation,
+ * token validation, media cleanup) as BullMQ job schedulers. Idempotent:
+ * upsertJobScheduler keyed by name replaces any existing schedule rather
+ * than piling up duplicates on every worker restart, so this is safe to
+ * call unconditionally at worker startup.
+ */
+export async function registerMaintenanceSchedules(): Promise<void> {
+  const queue = getMaintenanceQueue();
+  await queue.upsertJobScheduler(
+    MAINTENANCE_JOB_NAMES.reconcile,
+    { every: 5 * 60 * 1000 },
+    { name: MAINTENANCE_JOB_NAMES.reconcile, data: {} },
+  );
+  await queue.upsertJobScheduler(
+    MAINTENANCE_JOB_NAMES.validateTokens,
+    { every: 6 * 60 * 60 * 1000 },
+    { name: MAINTENANCE_JOB_NAMES.validateTokens, data: {} },
+  );
+  await queue.upsertJobScheduler(
+    MAINTENANCE_JOB_NAMES.cleanupMedia,
+    { every: 24 * 60 * 60 * 1000 },
+    { name: MAINTENANCE_JOB_NAMES.cleanupMedia, data: {} },
+  );
 }
