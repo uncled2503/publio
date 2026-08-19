@@ -8,6 +8,12 @@ interface MetaErrorPayload {
     error_subcode?: number;
     fbtrace_id?: string;
   };
+  // api.instagram.com/oauth/* (the OAuth-specific endpoints, as opposed to
+  // graph.instagram.com) return a flat shape instead of the nested `error`
+  // object the rest of the Graph API uses.
+  error_type?: string;
+  error_message?: string;
+  code?: number;
 }
 
 /**
@@ -26,10 +32,10 @@ export function normalizeProviderError(
 ): InstagramProviderError {
   const payload = (body ?? {}) as MetaErrorPayload;
   const err = payload.error;
-  const code = err?.code;
+  const code = err?.code ?? payload.code;
   const subcode = err?.error_subcode;
-  const type = err?.type;
-  const message = err?.message ?? fallbackMessage;
+  const type = err?.type ?? payload.error_type;
+  const message = err?.message ?? payload.error_message ?? fallbackMessage;
 
   const reauthCodes = new Set([190]);
   const reauthSubcodes = new Set([458, 459, 460, 463, 464, 467]);

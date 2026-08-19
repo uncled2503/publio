@@ -75,6 +75,9 @@ export async function GET(request: NextRequest) {
       workspaceId: workspace.id,
       code: providerError?.code,
       message: error instanceof Error ? error.message : String(error),
+      providerErrorCode: providerError?.providerErrorCode,
+      providerErrorType: providerError?.providerErrorType,
+      raw: providerError?.raw,
     });
     return NextResponse.redirect(accountsUrl(workspaceSlug, { error: "connection_failed" }));
   }
