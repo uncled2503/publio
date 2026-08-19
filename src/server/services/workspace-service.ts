@@ -2,7 +2,7 @@ import type { WorkspaceRole } from "@prisma/client";
 
 import { prisma } from "@/server/db/prisma";
 import { randomSlugSuffix, slugify } from "@/server/domain/slug";
-import { canManageMembers } from "@/server/domain/rbac";
+import { canManageMembers, canDeleteWorkspace } from "@/server/domain/rbac";
 import { AuditService } from "@/server/services/audit-service";
 
 export class WorkspaceAccessError extends Error {
@@ -185,5 +185,49 @@ export const WorkspaceService = {
     });
 
     return updated;
+  },
+
+  async updateWorkspace(
+    workspaceId: string,
+    actorRole: WorkspaceRole,
+    actorUserId: string,
+    data: { name?: string; timezone?: string },
+  ) {
+    if (!canManageMembers(actorRole)) {
+      throw new WorkspaceAccessError("Only admins and owners can update workspace settings.");
+    }
+    if (data.timezone) {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: data.timezone });
+      } catch {
+        throw new Error(`"${data.timezone}" is not a valid timezone.`);
+      }
+    }
+
+    const workspace = await prisma.workspace.update({ where: { id: workspaceId }, data });
+
+    await AuditService.log({
+      workspaceId,
+      actorUserId,
+      action: "workspace.updated",
+      resourceType: "workspace",
+      resourceId: workspaceId,
+      metadata: data,
+    });
+
+    return workspace;
+  },
+
+  /** Cascades to every workspace-scoped row via the schema's onDelete: Cascade FKs. */
+  async deleteWorkspace(workspaceId: string, actorRole: WorkspaceRole, workspaceSlugConfirmation: string) {
+    if (!canDeleteWorkspace(actorRole)) {
+      throw new WorkspaceAccessError("Only the workspace owner can delete it.");
+    }
+    const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
+    if (workspaceSlugConfirmation !== workspace.slug) {
+      throw new Error("Confirmation text does not match the workspace slug.");
+    }
+
+    await prisma.workspace.delete({ where: { id: workspaceId } });
   },
 };

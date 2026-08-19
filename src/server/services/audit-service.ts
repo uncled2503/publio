@@ -5,6 +5,7 @@ export { sanitizeMetadata };
 
 export type AuditAction =
   | "workspace.created"
+  | "workspace.updated"
   | "workspace.member_added"
   | "workspace.member_removed"
   | "workspace.member_role_changed"
