@@ -40,10 +40,11 @@
   --input: oklch(0.912 0.008 291);
   --ring: oklch(0.51 0.22 291);
 
-  /* Brand gradient stops — landing page hero/CTA accents only. */
-  --brand-from: oklch(0.62 0.24 322);
-  --brand-via: oklch(0.56 0.24 291);
-  --brand-to: oklch(0.52 0.2 261);
+  /* Brand gradient stops — matches the blue-to-violet sweep in the real
+     Publio logo mark (public/logo.png), landing page hero/CTA accents only. */
+  --brand-from: oklch(0.58 0.22 264);
+  --brand-via: oklch(0.54 0.24 291);
+  --brand-to: oklch(0.5 0.22 305);
 }
 
 .dark {
@@ -81,9 +82,9 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.72 0.19 291);
 
-  --brand-from: oklch(0.72 0.22 322);
-  --brand-via: oklch(0.66 0.22 291);
-  --brand-to: oklch(0.62 0.18 261);
+  --brand-from: oklch(0.68 0.2 264);
+  --brand-via: oklch(0.64 0.22 291);
+  --brand-to: oklch(0.6 0.2 305);
 }
 
 @theme inline {
