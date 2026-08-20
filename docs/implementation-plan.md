@@ -108,7 +108,7 @@ Next) per §91 — this document tracks only the checklist state.
 - [x] Phase 7 — Publishing worker (`src/server/publishing/publish-post-target-job.ts`): container creation per post type, status polling per ADR-005's documented interval, publish, permalink, PublishAttempt records, rate-limit gating, MISSED_SCHEDULE on disconnected accounts. Retries via BullMQ's own attempts/backoff; idempotency via one deterministic job per PostTarget. Locking beyond that (e.g. cross-process mutual exclusion) not yet needed — single worker process.
 - [x] Phase 8 — Calendar (month-grid view grouped by scheduled day in workspace timezone). No dedicated history/audit-log UI yet (audit_logs table is populated, no page reads it).
 - [ ] Phase 9 — Billing (Stripe checkout, webhook, entitlements, customer portal)
-- [ ] Phase 10 — Production hardening (rate limits, observability, audit logs, reconciliation, health checks, cleanup jobs)
+- [x] Phase 10 — Production hardening: `GET /api/health` (DB+Redis liveness), a `maintenance` BullMQ queue running reconcile (every 5min, safety net for orphaned QUEUED targets)/validate-tokens (every 6h)/cleanup-media (every 24h, actually frees R2 objects behind soft-deleted MediaAssets — previously never happened), and an Atividade recente panel on Settings reading the audit_logs table. Not done: external error tracking (SENTRY_DSN exists in env but no Sentry SDK wired up — no account to point it at yet), app-level rate limiting (e.g. login brute-force protection) beyond Meta's own publish-rate gate.
 - [ ] Phase 11 — Meta review readiness (docs, scopes, privacy, deletion process)
 
 ## 8. Risks & external dependencies
