@@ -2,6 +2,7 @@ import type { PostStatus, PostTargetStatus, PostType } from "@prisma/client";
 
 import { prisma } from "@/server/db/prisma";
 import { AuditService } from "@/server/services/audit-service";
+import { MediaService } from "@/server/services/media-service";
 import { assertPostTransition, nextPostStatuses } from "@/server/domain/post-state-machine";
 import {
   assertPostTargetTransition,
@@ -161,6 +162,10 @@ export const PostService = {
         })),
       }),
     ]);
+
+    // Reusing media that already had an expiry countdown running (from a
+    // previous published post) puts it back in active use.
+    await MediaService.cancelDeletionForMedia(params.mediaAssetIds);
 
     await AuditService.log({
       workspaceId: params.workspaceId,
@@ -380,6 +385,10 @@ export const PostService = {
     if (current === post.status) return;
 
     await prisma.post.update({ where: { id: post.id }, data: { status: current } });
+
+    if (current === "PUBLISHED") {
+      await MediaService.scheduleDeletionForPublishedPost(post.id);
+    }
   },
 };
 

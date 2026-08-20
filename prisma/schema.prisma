@@ -227,12 +227,20 @@ model MediaAsset {
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
+  /** Set once a post using this asset is fully PUBLISHED and no other
+   * non-terminal post still needs it — the maintenance cleanup job purges
+   * the asset (storage object + this row) once this passes, unless
+   * deletionExempt is set first via the "Manter mídia" button. */
+  scheduledDeletionAt DateTime?
+  deletionExempt      Boolean   @default(false)
+
   workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   uploadedBy User        @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
   postMedia  PostMedia[]
 
   @@index([workspaceId])
   @@index([processingStatus])
+  @@index([scheduledDeletionAt])
   @@map("media_assets")
 }
 
@@ -298,7 +306,10 @@ model PostMedia {
   metadata     Json      @default("{}")
 
   post       Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
-  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id])
+  // Cascade, not Restrict: once a MediaAsset is purged (manual delete, or
+  // the 3-day post-publish expiry), its usage record on old posts goes
+  // with it — the post itself and its externalPermalink survive.
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
 
   @@unique([postId, position])
   @@map("post_media")

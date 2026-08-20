@@ -1,11 +1,10 @@
 import { prisma } from "@/server/db/prisma";
-import { getStorageProvider } from "@/server/storage";
 import { SocialAccountService } from "@/server/services/social-account-service";
+import { purgeMediaAsset } from "@/server/services/media-service";
 import { getPublishPostTargetQueue, schedulePostTargetPublish } from "@/server/queue/queues";
 import { logger } from "@/server/observability/logger";
 
 const RECONCILE_GRACE_MS = 10 * 60 * 1000;
-const MEDIA_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Safety net for BullMQ's own persistence: a delayed job that's still in
@@ -61,25 +60,21 @@ export async function validateConnectedTokens(): Promise<{ checked: number; nowI
 }
 
 /**
- * MediaService.softDelete only ever sets deletedAt (and only after
- * confirming nothing references the asset) — nothing actually freed the
- * R2 object. After a retention window, delete the real object(s) and the
- * row. A storage failure leaves the row for the next run to retry rather
- * than losing track of it.
+ * Purges media whose 3-day post-publish countdown
+ * (MediaService.scheduleDeletionForPublishedPost) has elapsed and that
+ * wasn't marked deletionExempt ("Manter mídia") in the meantime. A storage
+ * failure leaves the row (with its countdown already expired) for the next
+ * run to retry rather than losing track of it.
  */
 export async function cleanupDeletedMedia(): Promise<{ purged: number }> {
-  const cutoff = new Date(Date.now() - MEDIA_RETENTION_MS);
   const assets = await prisma.mediaAsset.findMany({
-    where: { deletedAt: { not: null, lt: cutoff } },
+    where: { scheduledDeletionAt: { not: null, lt: new Date() }, deletionExempt: false },
   });
 
-  const storage = getStorageProvider();
   let purged = 0;
   for (const asset of assets) {
     try {
-      await storage.deleteObject(asset.storageKey);
-      const metadata = asset.metadata as { thumbnailKey?: string } | null;
-      if (metadata?.thumbnailKey) await storage.deleteObject(metadata.thumbnailKey);
+      await purgeMediaAsset(asset);
     } catch (error) {
       logger.error("maintenance.cleanup.storage_delete_failed", {
         mediaAssetId: asset.id,
@@ -87,7 +82,6 @@ export async function cleanupDeletedMedia(): Promise<{ purged: number }> {
       });
       continue;
     }
-    await prisma.mediaAsset.delete({ where: { id: asset.id } });
     purged++;
   }
 

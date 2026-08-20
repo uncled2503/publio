@@ -24,6 +24,7 @@ export type AuditAction =
   | "publish.failed"
   | "media.uploaded"
   | "media.deleted"
+  | "media.kept"
   | "billing.checkout_started"
   | "billing.subscription_updated"
   | "admin.viewed_workspace";

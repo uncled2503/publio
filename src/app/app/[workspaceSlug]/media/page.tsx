@@ -42,6 +42,8 @@ export default async function MediaLibraryPage({
       validationErrors: (validation?.errors ?? []).map((e) => e.message ?? "").filter(Boolean),
       publicUrl: storage.getPublicUrl(asset.storageKey),
       thumbnailUrl: metadata?.thumbnailKey ? storage.getPublicUrl(metadata.thumbnailKey) : null,
+      scheduledDeletionAt: asset.scheduledDeletionAt ? asset.scheduledDeletionAt.toISOString() : null,
+      deletionExempt: asset.deletionExempt,
     };
   });
 

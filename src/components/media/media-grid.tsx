@@ -3,9 +3,9 @@
 import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { MediaProcessingStatus } from "@prisma/client";
-import { FileVideo, Trash2 } from "lucide-react";
+import { FileVideo, Trash2, Clock } from "lucide-react";
 
-import { deleteMediaAction } from "@/server/actions/media-actions";
+import { deleteMediaAction, keepMediaAction } from "@/server/actions/media-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MediaProcessingBadge } from "@/components/media/media-processing-badge";
@@ -22,6 +22,13 @@ export interface MediaAssetView {
   validationErrors: string[];
   publicUrl: string;
   thumbnailUrl: string | null;
+  scheduledDeletionAt: string | null;
+  deletionExempt: boolean;
+}
+
+function daysRemaining(scheduledDeletionAt: string): number {
+  const ms = new Date(scheduledDeletionAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -108,6 +115,30 @@ export function MediaGrid({
             </div>
             {asset.processingStatus === "INVALID" && asset.validationErrors.length > 0 ? (
               <p className="text-xs text-destructive">{asset.validationErrors[0]}</p>
+            ) : null}
+            {asset.scheduledDeletionAt && !asset.deletionExempt ? (
+              <div className="flex items-center justify-between gap-2 rounded-md bg-warning/10 px-2 py-1.5">
+                <span className="flex items-center gap-1 text-[11px] text-warning-foreground">
+                  <Clock className="size-3" />
+                  Excluída em {daysRemaining(asset.scheduledDeletionAt)} dia
+                  {daysRemaining(asset.scheduledDeletionAt) === 1 ? "" : "s"}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(() => {
+                      keepMediaAction(workspaceSlug, asset.id).catch((error: unknown) => {
+                        window.alert(error instanceof Error ? error.message : "Não foi possível manter esta mídia.");
+                      });
+                    });
+                  }}
+                >
+                  Manter mídia
+                </Button>
+              </div>
             ) : null}
           </CardContent>
         </Card>

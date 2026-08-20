@@ -112,7 +112,15 @@ export const MediaService = {
     });
   },
 
-  async softDelete(workspaceId: string, actorUserId: string, mediaAssetId: string) {
+  /**
+   * User-initiated delete from the media library — immediate, not a grace
+   * period: frees the R2 object and removes the row right away. Still
+   * refuses to delete media a post is actively using (draft or otherwise
+   * unpublished); once a post is fully published, that same media becomes
+   * eligible for the 3-day auto-expiry instead (see scheduleDeletionIfUnused
+   * / the cleanup-media maintenance job), not this path.
+   */
+  async deleteMedia(workspaceId: string, actorUserId: string, mediaAssetId: string) {
     const asset = await prisma.mediaAsset.findFirst({
       where: { id: mediaAssetId, workspaceId, deletedAt: null },
     });
@@ -123,7 +131,7 @@ export const MediaService = {
       throw new MediaInUseError();
     }
 
-    await prisma.mediaAsset.update({ where: { id: asset.id }, data: { deletedAt: new Date() } });
+    await purgeMediaAsset(asset);
 
     await AuditService.log({
       workspaceId,
@@ -133,4 +141,75 @@ export const MediaService = {
       resourceId: asset.id,
     });
   },
+
+  /** Cancels a pending 3-day auto-expiry — the "Manter mídia" button. */
+  async keepMedia(workspaceId: string, actorUserId: string, mediaAssetId: string) {
+    const asset = await prisma.mediaAsset.findFirst({
+      where: { id: mediaAssetId, workspaceId, deletedAt: null },
+    });
+    if (!asset) throw new Error("Media asset not found in this workspace.");
+
+    await prisma.mediaAsset.update({
+      where: { id: asset.id },
+      data: { deletionExempt: true, scheduledDeletionAt: null },
+    });
+
+    await AuditService.log({
+      workspaceId,
+      actorUserId,
+      action: "media.kept",
+      resourceType: "media_asset",
+      resourceId: asset.id,
+    });
+  },
+
+  /**
+   * Called whenever a post reaches PUBLISHED (PostService.syncStatusFromTargets).
+   * Starts the 3-day countdown for each of its media assets, unless that
+   * asset is still attached to some other post that hasn't concluded yet,
+   * or is deletionExempt, or already has a countdown running.
+   */
+  async scheduleDeletionForPublishedPost(postId: string): Promise<void> {
+    const media = await prisma.postMedia.findMany({
+      where: { postId },
+      select: { mediaAssetId: true },
+    });
+
+    for (const { mediaAssetId } of media) {
+      const stillNeeded = await prisma.postMedia.count({
+        where: {
+          mediaAssetId,
+          postId: { not: postId },
+          post: { status: { notIn: ["PUBLISHED", "FAILED", "CANCELED"] } },
+        },
+      });
+      if (stillNeeded > 0) continue;
+
+      await prisma.mediaAsset.updateMany({
+        where: { id: mediaAssetId, deletionExempt: false, scheduledDeletionAt: null },
+        data: { scheduledDeletionAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
+      });
+    }
+  },
+
+  /** Reusing media that already had a countdown running cancels it — it's back in active use. */
+  async cancelDeletionForMedia(mediaAssetIds: string[]): Promise<void> {
+    if (mediaAssetIds.length === 0) return;
+    await prisma.mediaAsset.updateMany({
+      where: { id: { in: mediaAssetIds }, scheduledDeletionAt: { not: null } },
+      data: { scheduledDeletionAt: null },
+    });
+  },
 };
+
+async function purgeMediaAsset(asset: { id: string; storageKey: string; metadata: unknown }): Promise<void> {
+  const storage = getStorageProvider();
+  await storage.deleteObject(asset.storageKey);
+  const metadata = asset.metadata as { thumbnailKey?: string } | null;
+  if (metadata?.thumbnailKey) {
+    await storage.deleteObject(metadata.thumbnailKey);
+  }
+  await prisma.mediaAsset.delete({ where: { id: asset.id } });
+}
+
+export { purgeMediaAsset };
