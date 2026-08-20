@@ -1,12 +1,21 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { AtSign, CalendarClock, CheckCircle2, TriangleAlert, Plus } from "lucide-react";
+import {
+  AtSign,
+  CalendarClock,
+  CheckCircle2,
+  TriangleAlert,
+  Plus,
+  Check,
+  Circle,
+} from "lucide-react";
 
 import { requireWorkspaceMember } from "@/server/auth/workspace-context";
 import { DashboardService } from "@/server/services/dashboard-service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Dashboard — Publio" };
 
@@ -14,11 +23,20 @@ function StatCard({
   label,
   value,
   icon: Icon,
+  tone,
 }: {
   label: string;
   value: number;
   icon: React.ComponentType<{ className?: string }>;
+  tone: "primary" | "warning" | "success" | "destructive";
 }) {
+  const toneClasses: Record<typeof tone, string> = {
+    primary: "bg-primary/10 text-primary",
+    warning: "bg-warning/15 text-warning-foreground",
+    success: "bg-success/15 text-success",
+    destructive: "bg-destructive/10 text-destructive",
+  };
+
   return (
     <Card>
       <CardContent className="flex items-center justify-between">
@@ -26,10 +44,17 @@ function StatCard({
           <p className="text-sm text-muted-foreground">{label}</p>
           <p className="text-2xl font-semibold tabular-nums">{value}</p>
         </div>
-        <Icon className="size-5 text-muted-foreground" />
+        <div className={cn("flex size-9 items-center justify-center rounded-lg", toneClasses[tone])}>
+          <Icon className="size-5" />
+        </div>
       </CardContent>
     </Card>
   );
+}
+
+function firstName(name: string | null | undefined): string | null {
+  if (!name) return null;
+  return name.split(" ")[0] ?? null;
 }
 
 export default async function DashboardPage({
@@ -38,15 +63,27 @@ export default async function DashboardPage({
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const { workspaceSlug } = await params;
-  const { workspace } = await requireWorkspaceMember(workspaceSlug);
+  const { user, workspace } = await requireWorkspaceMember(workspaceSlug);
   const summary = await DashboardService.getSummary(workspace.id);
 
   const needsAttention = summary.accountsNeedingReauth.length > 0 || summary.failedTargets > 0;
+  const isGettingStarted = summary.connectedAccounts === 0 || summary.scheduledPosts + summary.recentlyPublished === 0;
+
+  const checklist = [
+    { done: summary.connectedAccounts > 0, label: "Conectar uma conta do Instagram", href: `/app/${workspace.slug}/accounts` },
+    { done: summary.scheduledPosts + summary.recentlyPublished > 0, label: "Criar sua primeira publicação", href: `/app/${workspace.slug}/posts/new` },
+    { done: false, label: "Convidar sua equipe", href: `/app/${workspace.slug}/team` },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {firstName(user.name) ? `Olá, ${firstName(user.name)}` : "Dashboard"}
+          </h1>
+          <p className="text-sm text-muted-foreground">{workspace.name}</p>
+        </div>
         <Button asChild>
           <Link href={`/app/${workspace.slug}/posts/new`}>
             <Plus /> Nova publicação
@@ -55,15 +92,42 @@ export default async function DashboardPage({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Contas conectadas" value={summary.connectedAccounts} icon={AtSign} />
-        <StatCard label="Agendadas" value={summary.scheduledPosts} icon={CalendarClock} />
+        <StatCard label="Contas conectadas" value={summary.connectedAccounts} icon={AtSign} tone="primary" />
+        <StatCard label="Agendadas" value={summary.scheduledPosts} icon={CalendarClock} tone="warning" />
         <StatCard
           label="Publicadas (7 dias)"
           value={summary.recentlyPublished}
           icon={CheckCircle2}
+          tone="success"
         />
-        <StatCard label="Com erro" value={summary.failedTargets} icon={TriangleAlert} />
+        <StatCard label="Com erro" value={summary.failedTargets} icon={TriangleAlert} tone="destructive" />
       </div>
+
+      {isGettingStarted ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Primeiros passos</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1">
+            {checklist.map((step) => (
+              <Link
+                key={step.label}
+                href={step.href}
+                className="flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent"
+              >
+                {step.done ? (
+                  <span className="flex size-5 items-center justify-center rounded-full bg-success text-success-foreground">
+                    <Check className="size-3" />
+                  </span>
+                ) : (
+                  <Circle className="size-5 text-muted-foreground" />
+                )}
+                <span className={step.done ? "text-muted-foreground line-through" : ""}>{step.label}</span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {needsAttention ? (
         <Card className="border-warning/40">

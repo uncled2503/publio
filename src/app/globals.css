@@ -15,17 +15,17 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.51 0.22 291);
   --primary-foreground: oklch(0.985 0 0);
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.97 0.005 291);
+  --secondary-foreground: oklch(0.24 0.05 291);
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted: oklch(0.97 0.005 291);
+  --muted-foreground: oklch(0.53 0.02 291);
 
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: oklch(0.94 0.03 291);
+  --accent-foreground: oklch(0.35 0.15 291);
 
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
@@ -36,9 +36,14 @@
   --warning: oklch(0.77 0.16 70);
   --warning-foreground: oklch(0.205 0 0);
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.912 0.008 291);
+  --input: oklch(0.912 0.008 291);
+  --ring: oklch(0.51 0.22 291);
+
+  /* Brand gradient stops — landing page hero/CTA accents only. */
+  --brand-from: oklch(0.62 0.24 322);
+  --brand-via: oklch(0.56 0.24 291);
+  --brand-to: oklch(0.52 0.2 261);
 }
 
 .dark {
@@ -51,17 +56,17 @@
   --popover: oklch(0.185 0 0);
   --popover-foreground: oklch(0.985 0 0);
 
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.72 0.19 291);
+  --primary-foreground: oklch(0.145 0.02 291);
 
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(0.269 0.01 291);
   --secondary-foreground: oklch(0.985 0 0);
 
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted: oklch(0.269 0.01 291);
+  --muted-foreground: oklch(0.708 0.01 291);
 
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.32 0.06 291);
+  --accent-foreground: oklch(0.9 0.05 291);
 
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
@@ -74,7 +79,11 @@
 
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.72 0.19 291);
+
+  --brand-from: oklch(0.72 0.22 322);
+  --brand-via: oklch(0.66 0.22 291);
+  --brand-to: oklch(0.62 0.18 261);
 }
 
 @theme inline {
@@ -117,5 +126,17 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-brand-gradient {
+    background-image: linear-gradient(135deg, var(--brand-from), var(--brand-via), var(--brand-to));
+  }
+  .text-brand-gradient {
+    background-image: linear-gradient(135deg, var(--brand-from), var(--brand-via), var(--brand-to));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
   }
 }

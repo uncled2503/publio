@@ -74,7 +74,7 @@ export async function WorkspaceTopbar({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="rounded-full">
             <Avatar className="size-8">
-              <AvatarFallback>{initials(userName)}</AvatarFallback>
+              <AvatarFallback className="bg-brand-gradient text-white">{initials(userName)}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>

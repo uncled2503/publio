@@ -1,6 +1,7 @@
 import { requireWorkspaceMember } from "@/server/auth/workspace-context";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { WorkspaceTopbar } from "@/components/app/workspace-topbar";
+import { Logo } from "@/components/logo";
 
 export default async function WorkspaceLayout({
   children,
@@ -15,7 +16,9 @@ export default async function WorkspaceLayout({
   return (
     <div className="flex min-h-svh">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border p-3 md:flex">
-        <div className="px-2 py-3 text-lg font-semibold tracking-tight">Publio</div>
+        <div className="px-2 py-3">
+          <Logo />
+        </div>
         <SidebarNav workspaceSlug={workspace.slug} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
