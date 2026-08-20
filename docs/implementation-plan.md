@@ -109,7 +109,7 @@ Next) per §91 — this document tracks only the checklist state.
 - [x] Phase 8 — Calendar (month-grid view grouped by scheduled day in workspace timezone). No dedicated history/audit-log UI yet (audit_logs table is populated, no page reads it).
 - [ ] Phase 9 — Billing (Stripe checkout, webhook, entitlements, customer portal)
 - [x] Phase 10 — Production hardening: `GET /api/health` (DB+Redis liveness), a `maintenance` BullMQ queue running reconcile (every 5min, safety net for orphaned QUEUED targets)/validate-tokens (every 6h)/cleanup-media (every 24h, actually frees R2 objects behind soft-deleted MediaAssets — previously never happened), and an Atividade recente panel on Settings reading the audit_logs table. Not done: external error tracking (SENTRY_DSN exists in env but no Sentry SDK wired up — no account to point it at yet), app-level rate limiting (e.g. login brute-force protection) beyond Meta's own publish-rate gate.
-- [ ] Phase 11 — Meta review readiness (docs, scopes, privacy, deletion process)
+- [ ] Phase 11 — Meta review readiness. Code side done: deauthorize + data deletion callbacks (verified signed_request), `/legal/data-deletion` page, scope justification drafts — see `docs/meta-app-review.md`. Still open, non-code: legal review of the Privacy Policy/Terms drafts, Meta business verification, App Review submission itself.
 
 ## 8. Risks & external dependencies
 
