@@ -52,8 +52,15 @@ export default function PrivacyPolicyPage() {
         <h2 className="font-medium">5. Direitos do titular (LGPD)</h2>
         <p className="text-sm text-muted-foreground">
           Você pode solicitar exportação ou exclusão dos seus dados, e desconectar sua conta do
-          Instagram a qualquer momento em Configurações → Contas sociais. Solicitações adicionais
-          podem ser enviadas para o email de suporte cadastrado no workspace.
+          Instagram a qualquer momento em Configurações → Contas sociais. Se você remover o
+          acesso do Publio diretamente pelas configurações do Instagram/Facebook, a Meta nos
+          notifica automaticamente e desconectamos sua conta e apagamos o token de acesso do
+          nosso lado também. Veja{" "}
+          <a href="/legal/data-deletion" className="underline underline-offset-2">
+            nossa página de exclusão de dados
+          </a>{" "}
+          para detalhes e para solicitar a exclusão completa do seu cadastro. Solicitações
+          adicionais podem ser enviadas para o email de suporte cadastrado no workspace.
         </p>
       </section>
 

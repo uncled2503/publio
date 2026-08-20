@@ -124,6 +124,40 @@ export const SocialAccountService = {
     });
   },
 
+  /**
+   * Driven by Meta's own Deauthorize/Data Deletion callbacks (§Phase 11) —
+   * there's no authenticated Publio user in that request, only the
+   * Instagram user id from a verified signed_request. Matches on
+   * instagramUserId across all workspaces (in practice one) and
+   * disconnects each, same as a manual disconnect.
+   */
+  async disconnectByInstagramUserId(instagramUserId: string, reason: string) {
+    const accounts = await prisma.socialAccount.findMany({
+      where: { instagramUserId, tokenStatus: { not: "DISCONNECTED" } },
+    });
+
+    for (const account of accounts) {
+      await prisma.socialAccount.update({
+        where: { id: account.id },
+        data: {
+          tokenStatus: "DISCONNECTED",
+          disconnectedAt: new Date(),
+          accessTokenEncrypted: tokenVault.encrypt(""),
+        },
+      });
+
+      await AuditService.log({
+        workspaceId: account.workspaceId,
+        action: "instagram.deauthorized_by_meta",
+        resourceType: "social_account",
+        resourceId: account.id,
+        metadata: { username: account.username, reason },
+      });
+    }
+
+    return accounts.length;
+  },
+
   /** Only for server-side use (worker, validation jobs) — never returned from an API/action. */
   async getDecryptedAccessToken(socialAccountId: string): Promise<string> {
     const account = await prisma.socialAccount.findUniqueOrThrow({

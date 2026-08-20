@@ -12,6 +12,8 @@ export type AuditAction =
   | "instagram.connected"
   | "instagram.disconnected"
   | "instagram.reconnected"
+  | "instagram.deauthorized_by_meta"
+  | "instagram.data_deletion_requested"
   | "post.created"
   | "post.updated"
   | "post.scheduled"
