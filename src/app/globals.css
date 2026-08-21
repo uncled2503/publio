@@ -172,6 +172,16 @@
   .animate-mascot-float-cta {
     animation: none;
   }
+  /* Snake background lines: freeze fully rather than leaving the highlight
+     segment stuck mid-path, so reduced-motion users get a calm static line
+     instead of an oddly-cropped stroke. */
+  .snake-base {
+    animation: none !important;
+  }
+  .snake-highlight {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
 
 @keyframes publio-float {
@@ -201,5 +211,17 @@
   }
   50% {
     transform: translateY(-11px) rotate(-2deg);
+  }
+}
+
+/* Snake seam lines — see SeamSnake in src/components/landing/wave-lines.tsx.
+   Slides the visible dash segment along a WaveDivider's own curve
+   (pathLength="100" normalizes the units so this works for any path). */
+@keyframes publio-snake-dash {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -100;
   }
 }

@@ -31,7 +31,8 @@ import { Reveal } from "@/components/landing/reveal";
 import { WaveDivider } from "@/components/landing/wave-divider";
 import { ScrollProgress } from "@/components/landing/scroll-progress";
 import { MobileNav } from "@/components/landing/mobile-nav";
-import { WaveLines } from "@/components/landing/wave-lines";
+import { SeamSnake } from "@/components/landing/wave-lines";
+import { ComposerPreview } from "@/components/landing/composer-preview";
 import { Faq } from "@/components/landing/faq";
 
 const STEPS = [
@@ -150,6 +151,23 @@ const FACTS = [
   { icon: RefreshCw, label: "Publicação com retentativa automática" },
 ] as const;
 
+const CALENDAR_TONES = {
+  success: "bg-success/10 text-success",
+  scheduled: "bg-primary/10 text-primary",
+  publishing: "bg-warning/15 text-warning-foreground",
+  attention: "bg-destructive/10 text-destructive",
+} as const;
+
+const CALENDAR_ENTRIES: Record<number, { label: string; tone: keyof typeof CALENDAR_TONES }> = {
+  4: { label: "Publicado", tone: "success" },
+  9: { label: "Agendado", tone: "scheduled" },
+  12: { label: "Publicado", tone: "success" },
+  16: { label: "Publicando", tone: "publishing" },
+  20: { label: "Agendado", tone: "scheduled" },
+  23: { label: "Publicado", tone: "success" },
+  27: { label: "Atenção", tone: "attention" },
+};
+
 const STATUS_ROWS = [
   { icon: CheckCircle2, tone: "text-success", label: "Promoção de verão", status: "Publicado" },
   {
@@ -168,8 +186,7 @@ const STATUS_ROWS = [
 
 export default function LandingPage() {
   return (
-    <div className="relative isolate flex flex-1 flex-col">
-      <WaveLines />
+    <div className="flex flex-1 flex-col">
       <ScrollProgress />
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-4 backdrop-blur md:px-12">
         <Link href="/">
@@ -251,7 +268,7 @@ export default function LandingPage() {
               aria-hidden="true"
               width={1254}
               height={1254}
-              quality={90}
+              unoptimized
               draggable={false}
               className="animate-mascot-float pointer-events-none absolute -top-10 -right-2 z-20 hidden w-44 max-w-none [aspect-ratio:1/1] select-none md:block lg:-top-12 lg:-right-4 lg:w-56 xl:-top-16 xl:-right-16 xl:w-[300px]"
             />
@@ -266,18 +283,21 @@ export default function LandingPage() {
               </div>
               <div className="grid grid-cols-7 gap-px bg-border p-px">
                 {Array.from({ length: 28 }).map((_, i) => {
-                  const hasPost = [3, 8, 11, 15, 19, 22, 26].includes(i);
-                  const isBrand = [8, 19].includes(i);
+                  const day = i + 1;
+                  const entry = CALENDAR_ENTRIES[day];
                   return (
                     <div key={i} className="flex min-h-16 flex-col gap-1 bg-card p-2">
-                      <span className="text-[10px] text-muted-foreground">{i + 1}</span>
-                      {hasPost ? (
+                      <span className="text-[10px] text-muted-foreground">{day}</span>
+                      {entry ? (
                         <span
                           className={
-                            "h-2 rounded-full " +
-                            (isBrand ? "bg-brand-gradient" : "bg-accent-foreground/30")
+                            "inline-flex w-fit items-center gap-1 truncate rounded-full px-1.5 py-0.5 text-[8px] font-medium whitespace-nowrap " +
+                            CALENDAR_TONES[entry.tone]
                           }
-                        />
+                        >
+                          <span className="size-1 shrink-0 rounded-full bg-current" />
+                          <span className="hidden sm:inline">{entry.label}</span>
+                        </span>
                       ) : null}
                     </div>
                   );
@@ -302,7 +322,10 @@ export default function LandingPage() {
           </div>
         </Reveal>
 
-        <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" />
+          <SeamSnake id="seam-0" color="via" direction="rtl" />
+        </div>
 
         {/* Showcase: Compositor */}
         <section className="px-6 py-16 md:px-12">
@@ -334,32 +357,15 @@ export default function LandingPage() {
               </ul>
             </Reveal>
             <Reveal delay={150}>
-              <Card className="overflow-hidden py-0 shadow-xl">
-                <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-                  <div className="bg-brand-gradient size-6 shrink-0 rounded-full" />
-                  <span className="text-xs font-medium">sua_marca</span>
-                </div>
-                <div className="flex aspect-square items-center justify-center bg-muted">
-                  <ImagePlus className="size-10 text-muted-foreground" />
-                </div>
-                <CardContent className="flex flex-col gap-2 p-4">
-                  <div className="h-2 w-4/5 rounded-full bg-accent" />
-                  <div className="h-2 w-3/5 rounded-full bg-accent" />
-                  <div className="mt-2 flex gap-2">
-                    <span className="rounded-md bg-secondary px-2 py-1 text-[11px] text-secondary-foreground">
-                      Carrossel
-                    </span>
-                    <span className="rounded-md bg-secondary px-2 py-1 text-[11px] text-secondary-foreground">
-                      3 itens
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+              <ComposerPreview />
             </Reveal>
           </div>
         </section>
 
-        <WaveDivider bgClassName="bg-background" fillClassName="text-secondary/40" />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-background" fillClassName="text-secondary/40" />
+          <SeamSnake id="seam-1" color="via" direction="ltr" />
+        </div>
 
         {/* Showcase: Confiabilidade */}
         <section className="bg-secondary/40 px-6 py-16 md:px-12">
@@ -412,7 +418,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" flip />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" flip />
+          <SeamSnake id="seam-3" flip color="to" direction="ltr" />
+        </div>
 
         {/* Showcase: Segurança e conformidade */}
         <section id="seguranca" className="scroll-mt-20 px-6 py-16 md:px-12">
@@ -445,7 +454,7 @@ export default function LandingPage() {
                   aria-hidden="true"
                   width={1341}
                   height={1173}
-                  quality={90}
+                  unoptimized
                   draggable={false}
                   className="animate-mascot-float-meta pointer-events-none mx-auto w-full select-none"
                 />
@@ -473,7 +482,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <WaveDivider bgClassName="bg-background" fillClassName="text-secondary/40" />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-background" fillClassName="text-secondary/40" />
+          <SeamSnake id="seam-2" color="to" direction="rtl" />
+        </div>
 
         {/* Showcase: Equipe */}
         <section className="bg-secondary/40 px-6 py-16 md:px-12">
@@ -520,7 +532,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" flip />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" flip />
+          <SeamSnake id="seam-5" flip color="from" direction="rtl" />
+        </div>
 
         {/* Features */}
         <section id="recursos" className="scroll-mt-20 px-6 py-20 md:px-12">
@@ -553,7 +568,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <WaveDivider bgClassName="bg-background" fillClassName="text-secondary/40" flip />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-background" fillClassName="text-secondary/40" flip />
+          <SeamSnake id="seam-4" flip color="from" direction="ltr" />
+        </div>
 
         {/* How it works */}
         <section id="como-funciona" className="scroll-mt-20 bg-secondary/40 px-6 py-20 md:px-12">
@@ -586,7 +604,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" />
+        <div className="relative">
+          <WaveDivider bgClassName="bg-secondary/40" fillClassName="text-background" />
+          <SeamSnake id="seam-6" color="to" direction="ltr" />
+        </div>
 
         {/* FAQ */}
         <section id="faq" className="scroll-mt-20 px-6 py-20 md:px-12">
@@ -620,7 +641,7 @@ export default function LandingPage() {
                 aria-hidden="true"
                 width={1254}
                 height={1254}
-                quality={90}
+                unoptimized
                 draggable={false}
                 className="animate-mascot-float-cta pointer-events-none mt-2 w-40 max-w-none select-none sm:w-48 md:hidden"
               />
@@ -631,6 +652,7 @@ export default function LandingPage() {
               aria-hidden="true"
               width={1254}
               height={1254}
+              unoptimized
               draggable={false}
               className="animate-mascot-float-cta pointer-events-none absolute z-0 hidden max-w-none select-none md:-top-8 md:-right-6 md:block md:w-64 lg:-top-10 lg:-right-10 lg:w-80 xl:-top-12 xl:-right-12 xl:w-[26rem]"
             />
