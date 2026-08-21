@@ -335,7 +335,7 @@ export default function LandingPage() {
                 Compositor
               </span>
               <h2 className="text-3xl font-semibold tracking-tight text-balance">
-                Escreva uma vez, publique com confiança
+                Veja como vai ficar antes de publicar
               </h2>
               <p className="text-muted-foreground">
                 Monte imagem, carrossel ou Reel com pré-visualização fiel ao Instagram — legenda,

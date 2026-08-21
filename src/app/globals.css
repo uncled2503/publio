@@ -182,6 +182,10 @@
     animation: none !important;
     opacity: 0 !important;
   }
+  .animate-like-pop {
+    animation: none !important;
+    display: none !important;
+  }
 }
 
 @keyframes publio-float {
@@ -211,6 +215,32 @@
   }
   50% {
     transform: translateY(-11px) rotate(-2deg);
+  }
+}
+
+/* Floating "like" hearts — see ComposerPreview. Two phases, each with its
+   own timing function (set per-keyframe, applying to the segment *out* of
+   that stop): a quick springy pop-in, then a smooth *linear* climb to fade
+   — constant velocity, so it doesn't feel like it hitches partway up the
+   way a single eased curve stretched over the whole animation would.
+   `--like-drift`/`--like-rot-from`/`--like-rot-to` are set per-heart via
+   inline style so every one takes a slightly different path with a single
+   shared keyframe. Forwards fill-mode so it stays gone until the spawning
+   effect removes the element from the DOM. */
+@keyframes publio-like-pop {
+  0% {
+    transform: translate(0, 0) scale(0.5) rotate(var(--like-rot-from, -6deg));
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  18% {
+    transform: translate(0, -24px) scale(1.15) rotate(0deg);
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  100% {
+    transform: translate(var(--like-drift, 0px), -150px) scale(0.85) rotate(var(--like-rot-to, 6deg));
+    opacity: 0;
   }
 }
 
