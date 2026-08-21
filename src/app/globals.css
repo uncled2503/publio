@@ -125,6 +125,9 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -139,5 +142,64 @@
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
+  }
+  .animate-float {
+    animation: publio-float 9s ease-in-out infinite;
+  }
+  .animate-float-delayed {
+    animation: publio-float 11s ease-in-out infinite;
+    animation-delay: -3s;
+  }
+  .animate-mascot-float {
+    animation: publio-mascot-float 5s ease-in-out infinite;
+  }
+  .animate-mascot-float-meta {
+    animation: publio-mascot-float 7s ease-in-out infinite;
+  }
+  .animate-mascot-float-cta {
+    animation: publio-mascot-float-cta 6s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-float,
+  .animate-float-delayed,
+  .animate-mascot-float,
+  .animate-mascot-float-meta,
+  .animate-mascot-float-cta {
+    animation: none;
+  }
+}
+
+@keyframes publio-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(2%, -4%) scale(1.05);
+  }
+}
+
+@keyframes publio-mascot-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.02);
+  }
+}
+
+@keyframes publio-mascot-float-cta {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-11px) rotate(-2deg);
   }
 }
