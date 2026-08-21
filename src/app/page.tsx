@@ -31,6 +31,7 @@ import { Reveal } from "@/components/landing/reveal";
 import { WaveDivider } from "@/components/landing/wave-divider";
 import { ScrollProgress } from "@/components/landing/scroll-progress";
 import { MobileNav } from "@/components/landing/mobile-nav";
+import { WaveLines } from "@/components/landing/wave-lines";
 import { Faq } from "@/components/landing/faq";
 
 const STEPS = [
@@ -167,7 +168,8 @@ const STATUS_ROWS = [
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="relative isolate flex flex-1 flex-col">
+      <WaveLines />
       <ScrollProgress />
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-background/80 px-6 py-4 backdrop-blur md:px-12">
         <Link href="/">
