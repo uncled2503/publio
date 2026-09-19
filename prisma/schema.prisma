@@ -106,6 +106,7 @@ model Workspace {
   members        WorkspaceMember[]
   socialAccounts SocialAccount[]
   mediaAssets    MediaAsset[]
+  mediaFolders   MediaFolder[]
   posts          Post[]
   subscription   Subscription?
   usageCounters  UsageCounter[]
@@ -203,10 +204,31 @@ enum MediaType {
   VIDEO
 }
 
+/** User-organized folders for the media library — nested via `parentId`. */
+model MediaFolder {
+  id          String   @id @default(cuid())
+  workspaceId String
+  parentId    String?
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent      MediaFolder?  @relation("MediaFolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children    MediaFolder[] @relation("MediaFolderChildren")
+  mediaAssets MediaAsset[]
+
+  @@unique([workspaceId, parentId, name])
+  @@index([workspaceId])
+  @@index([parentId])
+  @@map("media_folders")
+}
+
 model MediaAsset {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   workspaceId  String
   uploadedById String
+  folderId     String?
 
   storageProvider  String
   storageKey       String
@@ -219,6 +241,9 @@ model MediaAsset {
   videoCodec       String?
   audioCodec       String?
   aspectRatio      Float?
+
+  /** Manual order within its folder (or within the unfiled root bucket) — append-on-upload, editable via drag-reorder. */
+  position Int @default(0)
 
   processingStatus MediaProcessingStatus @default(PENDING)
   validation       Json                  @default("{}")
@@ -234,13 +259,15 @@ model MediaAsset {
   scheduledDeletionAt DateTime?
   deletionExempt      Boolean   @default(false)
 
-  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  uploadedBy User        @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
+  workspace  Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploadedBy User         @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
+  folder     MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   postMedia  PostMedia[]
 
   @@index([workspaceId])
   @@index([processingStatus])
   @@index([scheduledDeletionAt])
+  @@index([folderId])
   @@map("media_assets")
 }
 

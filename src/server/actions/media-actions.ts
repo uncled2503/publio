@@ -9,6 +9,7 @@ export async function requestMediaUploadAction(
   workspaceSlug: string,
   filename: string,
   mimeType: string,
+  folderId?: string | null,
 ) {
   const { user, workspace } = await requireWorkspaceMember(workspaceSlug);
 
@@ -17,6 +18,7 @@ export async function requestMediaUploadAction(
     uploadedById: user.id,
     originalFilename: filename,
     mimeType,
+    folderId,
   });
 }
 

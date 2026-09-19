@@ -16,7 +16,13 @@ interface UploadItem {
   message?: string;
 }
 
-export function MediaUploader({ workspaceSlug }: { workspaceSlug: string }) {
+export function MediaUploader({
+  workspaceSlug,
+  folderId = null,
+}: {
+  workspaceSlug: string;
+  folderId?: string | null;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<UploadItem[]>([]);
@@ -38,6 +44,7 @@ export function MediaUploader({ workspaceSlug }: { workspaceSlug: string }) {
         workspaceSlug,
         file.name,
         file.type,
+        folderId,
       );
 
       const putRes = await fetch(uploadUrl, {

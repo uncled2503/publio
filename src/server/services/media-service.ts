@@ -38,6 +38,7 @@ export const MediaService = {
     uploadedById: string;
     originalFilename: string;
     mimeType: string;
+    folderId?: string | null;
   }) {
     if (!isAcceptedMimeType(params.mimeType)) {
       throw new UnsupportedMediaTypeError(params.mimeType);
@@ -48,10 +49,18 @@ export const MediaService = {
     const storageKey = `media/${params.workspaceId}/${randomUUID()}`;
     const storage = getStorageProvider();
 
+    const folderId = params.folderId ?? null;
+    const maxPosition = await prisma.mediaAsset.aggregate({
+      where: { workspaceId: params.workspaceId, folderId },
+      _max: { position: true },
+    });
+
     const asset = await prisma.mediaAsset.create({
       data: {
         workspaceId: params.workspaceId,
         uploadedById: params.uploadedById,
+        folderId,
+        position: (maxPosition._max.position ?? -1) + 1,
         storageProvider: "s3",
         storageKey,
         originalFilename: params.originalFilename.slice(0, 255),

@@ -27,6 +27,11 @@ export type AuditAction =
   | "media.uploaded"
   | "media.deleted"
   | "media.kept"
+  | "media.moved_to_folder"
+  | "media_folder.created"
+  | "media_folder.renamed"
+  | "media_folder.deleted"
+  | "post.bulk_scheduled"
   | "billing.checkout_started"
   | "billing.subscription_updated"
   | "admin.viewed_workspace";
