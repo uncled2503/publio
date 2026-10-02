@@ -44,6 +44,5 @@ next-env.d.ts
 # Ruflo local secrets and runtime data
 .env.local
 .env.*.local
-.claude-flow/data/
-.claude-flow/logs/
-.claude-flow/sessions/
+.claude-flow/
+.claude/
