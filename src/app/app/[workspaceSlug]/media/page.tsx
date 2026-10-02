@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { requireWorkspaceMember } from "@/server/auth/workspace-context";
-import { MediaService } from "@/server/services/media-service";
 import { MediaFolderService } from "@/server/services/media-folder-service";
 import { SocialAccountService } from "@/server/services/social-account-service";
 import { getStorageProvider } from "@/server/storage";
@@ -9,6 +8,8 @@ import { MediaUploader } from "@/components/media/media-uploader";
 import { MediaGrid, type MediaAssetView } from "@/components/media/media-grid";
 import { FolderBar } from "@/components/media/folder-bar";
 import { BulkScheduleDialog } from "@/components/media/bulk-schedule-dialog";
+import { CancelFolderPostsButton } from "@/components/media/cancel-folder-posts-button";
+import { BulkScheduleService } from "@/server/services/bulk-schedule-service";
 
 export const metadata: Metadata = { title: "Mídia — Publio" };
 
@@ -33,12 +34,13 @@ export default async function MediaLibraryPage({
 
   const currentFolderId = folderId ?? null;
 
-  const [assets, breadcrumb, childFolders, allFolders, socialAccounts] = await Promise.all([
+  const [assets, breadcrumb, childFolders, allFolders, socialAccounts, cancelablePostCount] = await Promise.all([
     MediaFolderService.listMedia(workspace.id, currentFolderId),
     MediaFolderService.getBreadcrumb(workspace.id, currentFolderId),
     MediaFolderService.listChildren(workspace.id, currentFolderId),
     MediaFolderService.listAllFlat(workspace.id),
     SocialAccountService.listForWorkspace(workspace.id),
+    currentFolderId ? BulkScheduleService.countCancelableFolderPosts(workspace.id, currentFolderId) : 0,
   ]);
 
   const storage = getStorageProvider();
@@ -90,13 +92,20 @@ export default async function MediaLibraryPage({
           </p>
         </div>
         {currentFolderId ? (
-          <BulkScheduleDialog
-            workspaceSlug={workspaceSlug}
-            folderId={currentFolderId}
-            videos={scheduleableVideos}
-            accounts={connectedAccounts}
-            workspaceTimezone={workspace.timezone}
-          />
+          <div className="flex items-center gap-2">
+            <CancelFolderPostsButton
+              workspaceSlug={workspaceSlug}
+              folderId={currentFolderId}
+              count={cancelablePostCount}
+            />
+            <BulkScheduleDialog
+              workspaceSlug={workspaceSlug}
+              folderId={currentFolderId}
+              videos={scheduleableVideos}
+              accounts={connectedAccounts}
+              workspaceTimezone={workspace.timezone}
+            />
+          </div>
         ) : null}
       </div>
 

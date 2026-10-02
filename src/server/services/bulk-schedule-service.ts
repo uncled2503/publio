@@ -23,6 +23,26 @@ export class InvalidBulkScheduleError extends Error {}
 const MIN_LEAD_TIME_MS = 5 * 60 * 1000;
 
 /**
+ * Mirrors the cancel-eligible statuses the post editor offers (§ post-editor.tsx
+ * `canCancel`) — deliberately excludes PREPARING/PROCESSING_MEDIA/PUBLISHING
+ * even though the state machine technically allows canceling from the first
+ * two: those are fast, in-flight states where racing a cancel against the
+ * worker is asking for trouble, not a bulk-cancel's job to risk.
+ */
+const CANCELABLE_STATUSES = ["DRAFT", "SCHEDULED", "QUEUED", "FAILED"] as const;
+
+function findCancelableFolderPosts(workspaceId: string, folderId: string) {
+  return prisma.post.findMany({
+    where: {
+      workspaceId,
+      status: { in: [...CANCELABLE_STATUSES] },
+      media: { some: { mediaAsset: { folderId } } },
+    },
+    select: { id: true },
+  });
+}
+
+/**
  * Turns one media folder into a run of individually-scheduled REEL posts —
  * N videos/day at fixed times of day, continuing on the following days
  * until the folder is exhausted. Deliberately composed on top of
@@ -137,6 +157,54 @@ export const BulkScheduleService = {
     });
 
     return { createdPostIds };
+  },
+
+  /** Count of this folder's posts a bulk-cancel would actually touch — drives whether the UI shows the button at all. */
+  async countCancelableFolderPosts(workspaceId: string, folderId: string): Promise<number> {
+    const posts = await findCancelableFolderPosts(workspaceId, folderId);
+    return posts.length;
+  },
+
+  /**
+   * Cancels every still-cancelable post whose media lives in this folder —
+   * the inverse of scheduleFolder. Posts are matched by their media's
+   * current folder, not by "created in the same bulk-schedule run" (no
+   * batch id is stored), so moving media out of the folder after scheduling
+   * excludes it from a later bulk-cancel here.
+   */
+  async cancelFolderPosts(params: {
+    workspaceId: string;
+    actorUserId: string;
+    folderId: string;
+  }): Promise<{ canceledCount: number; failedCount: number }> {
+    const folder = await prisma.mediaFolder.findFirst({
+      where: { id: params.folderId, workspaceId: params.workspaceId },
+    });
+    if (!folder) throw new Error("Pasta não encontrada neste workspace.");
+
+    const posts = await findCancelableFolderPosts(params.workspaceId, params.folderId);
+
+    let canceledCount = 0;
+    let failedCount = 0;
+    for (const { id } of posts) {
+      try {
+        await PostService.cancelPost({ workspaceId: params.workspaceId, actorUserId: params.actorUserId, postId: id });
+        canceledCount++;
+      } catch {
+        failedCount++;
+      }
+    }
+
+    await AuditService.log({
+      workspaceId: params.workspaceId,
+      actorUserId: params.actorUserId,
+      action: "post.bulk_canceled",
+      resourceType: "media_folder",
+      resourceId: params.folderId,
+      metadata: { canceledCount, failedCount },
+    });
+
+    return { canceledCount, failedCount };
   },
 };
 

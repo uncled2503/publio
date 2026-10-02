@@ -26,6 +26,9 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "prisma/migrations/**",
+    // Local tooling state (Claude Code / claude-flow), not project source.
+    ".claude/**",
+    ".claude-flow/**",
   ]),
 ]);
 

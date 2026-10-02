@@ -33,3 +33,19 @@ export async function bulkScheduleFolderAction(
 
   return result;
 }
+
+export async function cancelFolderPostsAction(workspaceSlug: string, folderId: string) {
+  const { user, workspace } = await requireWorkspaceMember(workspaceSlug);
+
+  const result = await BulkScheduleService.cancelFolderPosts({
+    workspaceId: workspace.id,
+    actorUserId: user.id,
+    folderId,
+  });
+
+  revalidatePath(`/app/${workspaceSlug}/media`);
+  revalidatePath(`/app/${workspaceSlug}/posts`);
+  revalidatePath(`/app/${workspaceSlug}/calendar`);
+
+  return result;
+}

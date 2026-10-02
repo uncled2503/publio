@@ -62,11 +62,18 @@ export function MediaGrid({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [assets, setAssets] = useState(initialAssets);
+  // Resets local (drag-reorderable) state when the server hands us a fresh
+  // `initialAssets` — done during render per react.dev's "adjusting state
+  // when a prop changes" guidance, not in an effect (avoids an extra render
+  // pass and the react-hooks/set-state-in-effect lint error).
+  const [prevInitialAssets, setPrevInitialAssets] = useState(initialAssets);
+  if (initialAssets !== prevInitialAssets) {
+    setPrevInitialAssets(initialAssets);
+    setAssets(initialAssets);
+  }
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-
-  useEffect(() => setAssets(initialAssets), [initialAssets]);
 
   const hasInFlight = assets.some(
     (a) => a.processingStatus === "PENDING" || a.processingStatus === "PROCESSING",
