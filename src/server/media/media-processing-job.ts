@@ -9,6 +9,7 @@ import { sniffMediaMimeType } from "./sniff-mime";
 import { getJpegDimensions } from "./jpeg-dimensions";
 import { FfprobeParseError, FfprobeUnavailableError, probeVideo } from "./video-metadata";
 import { extractThumbnail } from "./video-thumbnail";
+import { transcodeToH264 } from "./video-transcode";
 
 const SNIFF_BYTES = 64 * 1024;
 
@@ -108,7 +109,7 @@ async function processImage(
 async function processVideo(
   mediaAssetId: string,
   storageKey: string,
-  mimeType: "video/mp4" | "video/quicktime",
+  initialMimeType: "video/mp4" | "video/quicktime",
   storage: ReturnType<typeof getStorageProvider>,
 ): Promise<void> {
   const publicUrl = storage.getPublicUrl(storageKey);
@@ -137,10 +138,63 @@ async function processVideo(
   }
 
   const head = await storage.headObject(storageKey);
-  const sizeBytes = head?.sizeBytes ?? 0;
+  let mimeType = initialMimeType;
+  let sizeBytes = head?.sizeBytes ?? 0;
+
+  let result = MediaValidationService.validateReel({
+    mimeType,
+    sizeBytes,
+    width: probe.width,
+    height: probe.height,
+    durationSeconds: probe.durationSeconds,
+    videoCodec: probe.videoCodec,
+    audioCodec: probe.audioCodec,
+    frameRate: probe.frameRate,
+  });
+
+  // The codec itself is the one thing we can fix instead of just rejecting:
+  // re-encode to H.264/AAC and overwrite the stored object in place, then
+  // re-validate. Anything else wrong with the file (duration, aspect
+  // ratio, size) is left for the user to fix.
+  if (result.errors.some((e) => e.code === "UNSUPPORTED_VIDEO_CODEC")) {
+    try {
+      const transcoded = await transcodeToH264(publicUrl, !!probe.audioCodec);
+      await storage.putObject(storageKey, transcoded, "video/mp4");
+
+      mimeType = "video/mp4";
+      sizeBytes = transcoded.length;
+      probe = {
+        ...probe,
+        videoCodec: "h264",
+        audioCodec: probe.audioCodec ? "aac" : null,
+      };
+
+      result = MediaValidationService.validateReel({
+        mimeType,
+        sizeBytes,
+        width: probe.width,
+        height: probe.height,
+        durationSeconds: probe.durationSeconds,
+        videoCodec: probe.videoCodec,
+        audioCodec: probe.audioCodec,
+        frameRate: probe.frameRate,
+      });
+
+      logger.info("media.processing.transcoded", { mediaAssetId, sizeBytes });
+    } catch (error) {
+      // Non-fatal — falls through with the original (invalid) result, same
+      // as before this codec-fixing step existed.
+      logger.warn("media.processing.transcode_failed", {
+        mediaAssetId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   let thumbnailKey: string | null = null;
   try {
+    // Re-reads from `publicUrl` at the same key, so this picks up the
+    // transcoded bytes above when that ran.
     const thumbnail = await extractThumbnail(publicUrl);
     thumbnailKey = `${storageKey}-thumb.jpg`;
     await storage.putObject(thumbnailKey, thumbnail, "image/jpeg");
@@ -151,17 +205,6 @@ async function processVideo(
       message: error instanceof Error ? error.message : String(error),
     });
   }
-
-  const result = MediaValidationService.validateReel({
-    mimeType,
-    sizeBytes,
-    width: probe.width,
-    height: probe.height,
-    durationSeconds: probe.durationSeconds,
-    videoCodec: probe.videoCodec,
-    audioCodec: probe.audioCodec,
-    frameRate: probe.frameRate,
-  });
 
   await finalize(mediaAssetId, result, {
     mimeType,

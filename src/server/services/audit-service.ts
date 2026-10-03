@@ -28,6 +28,7 @@ export type AuditAction =
   | "media.deleted"
   | "media.kept"
   | "media.moved_to_folder"
+  | "media.reprocess_requested"
   | "media_folder.created"
   | "media_folder.renamed"
   | "media_folder.deleted"

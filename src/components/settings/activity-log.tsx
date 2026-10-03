@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<string, string> = {
   "publish.failed": "publicação falhou",
   "media.uploaded": "enviou uma mídia",
   "media.deleted": "removeu uma mídia",
+  "media.reprocess_requested": "pediu para reprocessar uma mídia",
   "billing.checkout_started": "iniciou um checkout",
   "billing.subscription_updated": "atualizou a assinatura",
   "admin.viewed_workspace": "acesso administrativo",

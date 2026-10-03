@@ -151,6 +151,34 @@ export const MediaService = {
     });
   },
 
+  /**
+   * Re-queues processing for an asset marked INVALID — e.g. after a worker
+   * fix (new codec auto-transcode) that can now succeed where it couldn't
+   * before. Re-runs the exact same pipeline as a fresh upload.
+   */
+  async reprocessMedia(workspaceId: string, actorUserId: string, mediaAssetId: string) {
+    const asset = await prisma.mediaAsset.findFirst({
+      where: { id: mediaAssetId, workspaceId, deletedAt: null },
+    });
+    if (!asset) throw new Error("Media asset not found in this workspace.");
+
+    await prisma.mediaAsset.update({
+      where: { id: asset.id },
+      data: { processingStatus: "PENDING" },
+    });
+    await enqueueMediaProcessing(asset.id);
+
+    await AuditService.log({
+      workspaceId,
+      actorUserId,
+      action: "media.reprocess_requested",
+      resourceType: "media_asset",
+      resourceId: asset.id,
+    });
+
+    logger.info("media.reprocess.requested", { mediaAssetId: asset.id, workspaceId });
+  },
+
   /** Cancels a pending 3-day auto-expiry — the "Manter mídia" button. */
   async keepMedia(workspaceId: string, actorUserId: string, mediaAssetId: string) {
     const asset = await prisma.mediaAsset.findFirst({

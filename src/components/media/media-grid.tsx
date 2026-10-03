@@ -3,9 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { MediaProcessingStatus } from "@prisma/client";
-import { FileVideo, Trash2, Clock, GripVertical, FolderInput, CheckSquare, Square } from "lucide-react";
+import { FileVideo, Trash2, Clock, GripVertical, FolderInput, CheckSquare, Square, RotateCw } from "lucide-react";
 
-import { deleteMediaAction, keepMediaAction } from "@/server/actions/media-actions";
+import { deleteMediaAction, keepMediaAction, reprocessMediaAction } from "@/server/actions/media-actions";
 import { moveMediaToFolderAction, reorderFolderMediaAction } from "@/server/actions/media-folder-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -285,8 +285,29 @@ export function MediaGrid({
                     ) : null}
                   </div>
                 </div>
-                {asset.processingStatus === "INVALID" && asset.validationErrors.length > 0 ? (
-                  <p className="text-xs text-destructive">{asset.validationErrors[0]}</p>
+                {asset.processingStatus === "INVALID" ? (
+                  <div className="flex flex-col gap-1.5">
+                    {asset.validationErrors.length > 0 ? (
+                      <p className="text-xs text-destructive">{asset.validationErrors[0]}</p>
+                    ) : null}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 w-fit px-2 text-[11px]"
+                      disabled={pending}
+                      onClick={() => {
+                        startTransition(() => {
+                          reprocessMediaAction(workspaceSlug, asset.id).catch((error: unknown) => {
+                            window.alert(
+                              error instanceof Error ? error.message : "Não foi possível reprocessar esta mídia.",
+                            );
+                          });
+                        });
+                      }}
+                    >
+                      <RotateCw className="size-3" /> Tentar novamente
+                    </Button>
+                  </div>
                 ) : null}
                 {asset.scheduledDeletionAt && !asset.deletionExempt ? (
                   <div className="flex items-center justify-between gap-2 rounded-md bg-warning/10 px-2 py-1.5">

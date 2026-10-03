@@ -42,3 +42,10 @@ export async function keepMediaAction(workspaceSlug: string, mediaAssetId: strin
   await MediaService.keepMedia(workspace.id, user.id, mediaAssetId);
   revalidatePath(`/app/${workspaceSlug}/media`);
 }
+
+export async function reprocessMediaAction(workspaceSlug: string, mediaAssetId: string) {
+  const { user, workspace } = await requireWorkspaceMember(workspaceSlug);
+
+  await MediaService.reprocessMedia(workspace.id, user.id, mediaAssetId);
+  revalidatePath(`/app/${workspaceSlug}/media`);
+}
