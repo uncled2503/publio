@@ -1,0 +1,22 @@
+# Standalone BullMQ worker (src/worker/index.ts) — not the Next.js app.
+# See docs/adr/ADR-006-zero-cost-infrastructure.md for why this runs as its
+# own always-on process rather than inside a serverless function.
+FROM node:20-alpine
+
+# ffmpeg/ffprobe are invoked as system binaries by src/server/media
+# (video-thumbnail.ts, video-metadata.ts) — not an npm package.
+RUN apk add --no-cache ffmpeg
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY prisma ./prisma
+RUN npx prisma generate
+
+COPY . .
+
+ENV NODE_ENV=production
+
+CMD ["npx", "tsx", "src/worker/index.ts"]
