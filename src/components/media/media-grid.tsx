@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import type { MediaProcessingStatus } from "@prisma/client";
 import { FileVideo, Trash2, Clock, GripVertical, FolderInput, CheckSquare, Square, RotateCw } from "lucide-react";
 
-import { deleteMediaAction, keepMediaAction, reprocessMediaAction } from "@/server/actions/media-actions";
+import {
+  deleteMediaAction,
+  deleteMediaBulkAction,
+  keepMediaAction,
+  reprocessMediaAction,
+} from "@/server/actions/media-actions";
 import { moveMediaToFolderAction, reorderFolderMediaAction } from "@/server/actions/media-folder-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,6 +115,28 @@ export function MediaGrid({
     });
   }
 
+  function deleteSelection() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Remover ${ids.length} mídia(s) selecionada(s)?`)) return;
+    startTransition(() => {
+      deleteMediaBulkAction(workspaceSlug, ids)
+        .then((result) => {
+          setSelectedIds(new Set());
+          setSelectionMode(false);
+          router.refresh();
+          if (result.skipped.length > 0) {
+            window.alert(
+              `${result.deletedCount} removida(s). ${result.skipped.length} não puderam ser removidas (provavelmente em uso em alguma publicação).`,
+            );
+          }
+        })
+        .catch((err: unknown) => {
+          window.alert(err instanceof Error ? err.message : "Não foi possível remover a mídia selecionada.");
+        });
+    });
+  }
+
   function handleDrop(targetIndex: number) {
     if (dragIndex === null || dragIndex === targetIndex) return;
     const next = [...assets];
@@ -149,6 +176,20 @@ export function MediaGrid({
           {selectionMode ? "Cancelar seleção" : "Selecionar"}
         </Button>
 
+        {selectionMode ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setSelectedIds((current) =>
+                current.size === assets.length ? new Set() : new Set(assets.map((a) => a.id)),
+              )
+            }
+          >
+            {selectedIds.size === assets.length ? "Desmarcar tudo" : "Selecionar tudo"}
+          </Button>
+        ) : null}
+
         {selectionMode && selectedIds.size > 0 ? (
           <>
             <span className="text-sm text-muted-foreground">{selectedIds.size} selecionada(s)</span>
@@ -169,6 +210,11 @@ export function MediaGrid({
                   ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {canDelete ? (
+              <Button variant="destructive" size="sm" disabled={pending} onClick={deleteSelection}>
+                <Trash2 className="size-4" /> Excluir selecionadas
+              </Button>
+            ) : null}
           </>
         ) : null}
       </div>

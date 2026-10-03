@@ -152,6 +152,35 @@ export const MediaService = {
   },
 
   /**
+   * Bulk delete from the selection toolbar. Best-effort per asset: one
+   * still in use by a post shouldn't block deleting the rest of the
+   * selection, so failures are collected and reported back instead of
+   * aborting the whole batch.
+   */
+  async deleteMediaBulk(
+    workspaceId: string,
+    actorUserId: string,
+    mediaAssetIds: string[],
+  ): Promise<{ deletedCount: number; skipped: Array<{ id: string; reason: string }> }> {
+    let deletedCount = 0;
+    const skipped: Array<{ id: string; reason: string }> = [];
+
+    for (const mediaAssetId of mediaAssetIds) {
+      try {
+        await this.deleteMedia(workspaceId, actorUserId, mediaAssetId);
+        deletedCount += 1;
+      } catch (error) {
+        skipped.push({
+          id: mediaAssetId,
+          reason: error instanceof Error ? error.message : "Erro desconhecido.",
+        });
+      }
+    }
+
+    return { deletedCount, skipped };
+  },
+
+  /**
    * Re-queues processing for an asset marked INVALID — e.g. after a worker
    * fix (new codec auto-transcode) that can now succeed where it couldn't
    * before. Re-runs the exact same pipeline as a fresh upload.

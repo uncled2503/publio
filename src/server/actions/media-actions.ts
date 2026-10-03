@@ -36,6 +36,14 @@ export async function deleteMediaAction(workspaceSlug: string, mediaAssetId: str
   revalidatePath(`/app/${workspaceSlug}/media`);
 }
 
+export async function deleteMediaBulkAction(workspaceSlug: string, mediaAssetIds: string[]) {
+  const { user, workspace } = await requireWorkspaceMember(workspaceSlug);
+
+  const result = await MediaService.deleteMediaBulk(workspace.id, user.id, mediaAssetIds);
+  revalidatePath(`/app/${workspaceSlug}/media`);
+  return result;
+}
+
 export async function keepMediaAction(workspaceSlug: string, mediaAssetId: string) {
   const { user, workspace } = await requireWorkspaceMember(workspaceSlug);
 
