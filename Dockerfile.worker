@@ -10,10 +10,10 @@ RUN apk add --no-cache ffmpeg
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
-
 COPY prisma ./prisma
-RUN npx prisma generate
+# npm ci runs the "postinstall": "prisma generate" script, which needs
+# prisma/schema.prisma already in place — hence copying it before this.
+RUN npm ci
 
 COPY . .
 
