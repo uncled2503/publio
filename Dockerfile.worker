@@ -11,9 +11,14 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-# npm ci runs the "postinstall": "prisma generate" script, which needs
-# prisma/schema.prisma already in place — hence copying it before this.
-RUN npm ci
+# npm install, not npm ci: the committed lockfile was generated on Windows
+# and is missing linux-musl/wasm optionalDependencies entries npm expects
+# to find here, which makes `npm ci` fail its strict sync check in this
+# Alpine image. npm install resolves them fine without needing a
+# byte-identical cross-platform lockfile. Also runs "postinstall": "prisma
+# generate", which needs prisma/schema.prisma already in place — hence
+# copying it before this.
+RUN npm install
 
 COPY . .
 
