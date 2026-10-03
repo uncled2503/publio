@@ -31,13 +31,25 @@ assertProductionSafety();
 
 const connection = getRedisConnection();
 
+/**
+ * Upstash's free tier bills per Redis command, not per connection — and
+ * BullMQ's default idle-poll interval (`drainDelay`, 5s) plus its stalled-
+ * job scan (`stalledInterval`, 30s) run continuously on all three queues
+ * even when there's nothing to do. That alone can burn through a 500k/day
+ * command cap well before any real job volume does. These are widened
+ * everywhere: a delayed job already due still wakes its worker at the
+ * exact right time (BullMQ computes that independently of drainDelay) —
+ * this only slows down the "queue is completely empty" polling case.
+ */
+const IDLE_WORKER_OPTS = { drainDelay: 30, stalledInterval: 120_000 };
+
 const mediaProcessingWorker = new Worker<MediaProcessingJobData>(
   QUEUE_NAMES.mediaProcessing,
   async (job: Job<MediaProcessingJobData>) => {
     logger.info("worker.media_processing.started", { jobId: job.id, mediaAssetId: job.data.mediaAssetId });
     await processMediaAsset(job.data.mediaAssetId);
   },
-  { connection, concurrency: 4 },
+  { connection, concurrency: 4, ...IDLE_WORKER_OPTS },
 );
 
 mediaProcessingWorker.on("completed", (job) => {
@@ -61,7 +73,7 @@ const publishPostTargetWorker = new Worker<PublishPostTargetJobData>(
   },
   // Concurrency 1: publishing is I/O-bound but rate-limit-sensitive against
   // Meta's API — no need to parallelize within a single worker process.
-  { connection, concurrency: 1 },
+  { connection, concurrency: 1, ...IDLE_WORKER_OPTS },
 );
 
 publishPostTargetWorker.on("completed", (job) => {
@@ -93,7 +105,7 @@ const maintenanceWorker = new Worker<MaintenanceJobData>(
         return null;
     }
   },
-  { connection, concurrency: 1 },
+  { connection, concurrency: 1, ...IDLE_WORKER_OPTS },
 );
 
 maintenanceWorker.on("completed", (job, result) => {
