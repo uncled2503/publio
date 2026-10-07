@@ -10,6 +10,21 @@ import { Button } from "@/components/ui/button";
 const ACCEPTED_TYPES = ["image/jpeg", "video/mp4", "video/quicktime"];
 const ACCEPT_ATTR = ".jpg,.jpeg,image/jpeg,.mp4,video/mp4,.mov,video/quicktime";
 
+// Uploading dozens of files via one unbounded Promise.all fires that many
+// concurrent confirmMediaUploadAction calls, each triggering a server-side
+// revalidatePath re-render — under enough concurrency that occasionally
+// surfaces as a transient (and, in production, minified/unreadable) React
+// error on a handful of items. Capping concurrency keeps the burst bounded.
+const UPLOAD_CONCURRENCY = 3;
+
+function friendlyUploadError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/^Minified React error/i.test(message)) {
+    return "Falha temporária ao processar o envio. Tente novamente.";
+  }
+  return message || "Erro no upload";
+}
+
 interface UploadItem {
   name: string;
   status: "uploading" | "processing" | "done" | "error";
@@ -60,15 +75,21 @@ export function MediaUploader({
         prev.map((it) => (it.name === file.name ? { ...it, status: "processing" } : it)),
       );
 
-      await confirmMediaUploadAction(workspaceSlug, mediaAssetId);
+      try {
+        await confirmMediaUploadAction(workspaceSlug, mediaAssetId);
+      } catch {
+        // The upload itself already succeeded (the PUT above landed) — a
+        // failure here is the confirm step racing with concurrent
+        // revalidation from other in-flight uploads. One retry clears it
+        // without bothering the user.
+        await confirmMediaUploadAction(workspaceSlug, mediaAssetId);
+      }
 
       setItems((prev) => prev.map((it) => (it.name === file.name ? { ...it, status: "done" } : it)));
     } catch (error) {
       setItems((prev) =>
         prev.map((it) =>
-          it.name === file.name
-            ? { ...it, status: "error", message: error instanceof Error ? error.message : "Erro no upload" }
-            : it,
+          it.name === file.name ? { ...it, status: "error", message: friendlyUploadError(error) } : it,
         ),
       );
     }
@@ -78,7 +99,10 @@ export function MediaUploader({
     if (!fileList || fileList.length === 0) return;
     setBusy(true);
     setItems([]);
-    await Promise.all(Array.from(fileList).map(uploadOne));
+    const files = Array.from(fileList);
+    for (let i = 0; i < files.length; i += UPLOAD_CONCURRENCY) {
+      await Promise.all(files.slice(i, i + UPLOAD_CONCURRENCY).map(uploadOne));
+    }
     setBusy(false);
     router.refresh();
     if (inputRef.current) inputRef.current.value = "";
