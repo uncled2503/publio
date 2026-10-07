@@ -92,7 +92,39 @@ export const MediaService = {
       throw new Error("Upload not found in storage yet — the PUT may still be in flight or failed.");
     }
 
-    await enqueueMediaProcessing(asset.id);
+    try {
+      await enqueueMediaProcessing(asset.id);
+    } catch (error) {
+      // The file is already safely in storage — only the queue hand-off
+      // failed (e.g. Redis unavailable or over its command quota). Leaving
+      // the row at PENDING forever would strand it with no job and no way
+      // for the user to retry, since the grid's "Tentar novamente" button
+      // only appears for INVALID assets. Marking it INVALID here reuses
+      // that existing recovery path instead of adding a second one.
+      logger.error("media.upload.enqueue_failed", {
+        mediaAssetId: asset.id,
+        workspaceId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      await prisma.mediaAsset.update({
+        where: { id: asset.id },
+        data: {
+          processingStatus: "INVALID",
+          validation: {
+            valid: false,
+            errors: [
+              {
+                code: "ENQUEUE_FAILED",
+                message: "Não foi possível agendar o processamento deste arquivo. Tente novamente.",
+              },
+            ],
+            warnings: [],
+            normalizedMetadata: {},
+          } as never,
+        },
+      });
+      throw error;
+    }
 
     await AuditService.log({
       workspaceId,

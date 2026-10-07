@@ -40,8 +40,14 @@ const connection = getRedisConnection();
  * everywhere: a delayed job already due still wakes its worker at the
  * exact right time (BullMQ computes that independently of drainDelay) —
  * this only slows down the "queue is completely empty" polling case.
+ *
+ * Even at drainDelay=30s/stalledInterval=120s, three always-on workers
+ * sit close enough to the daily cap that a single bulk-upload burst can
+ * tip it over (observed: 500,009 / 500,000). Widened further here — this
+ * is a stopgap, not a fix: the real headroom problem is the fixed daily
+ * command cap itself, which only an Upstash plan upgrade removes.
  */
-const IDLE_WORKER_OPTS = { drainDelay: 30, stalledInterval: 120_000 };
+const IDLE_WORKER_OPTS = { drainDelay: 60, stalledInterval: 300_000 };
 
 const mediaProcessingWorker = new Worker<MediaProcessingJobData>(
   QUEUE_NAMES.mediaProcessing,
